@@ -1,0 +1,150 @@
+--!strict
+-- src/client/MainLauncher.client.luau
+-- Главный запуск всех UI компонентов
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+-- Ждем загрузки игрока
+local player = Players.LocalPlayer
+repeat wait() until player.Character
+
+-- Быстрая загрузка
+wait(0.1)
+
+print("🚀 MainLauncher: Запуск главного интерфейса...")
+
+-- Очищаем старые UI
+local function cleanupOldUI()
+	local playerGui = player:WaitForChild("PlayerGui")
+	local oldUIs = {"MainApp", "TestScreenGui", "ShopApp", "AbilityUI", "MainInterfaceUI"}
+	for _, uiName in ipairs(oldUIs) do
+		local oldUI = playerGui:FindFirstChild(uiName)
+		if oldUI then
+			oldUI:Destroy()
+		end
+	end
+end
+
+cleanupOldUI()
+
+-- Загружаем зависимости
+local ModuleLoader = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ModuleLoader"))
+local Roact = ModuleLoader.require("Packages/roact")
+
+-- Загружаем основные компоненты
+local AppController = ModuleLoader.require("App/AppController")
+
+-- Монтируем AppController - он содержит весь функционал
+print("📱 MainLauncher: Монтируем AppController...")
+local appElement = Roact.createElement(AppController)
+local appHandle = Roact.mount(appElement, player:WaitForChild("PlayerGui"), "MainApp")
+
+print("✅ MainLauncher: Главный интерфейс загружен!")
+
+-- Импортируем зависимости
+local ModuleLoader = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ModuleLoader"))
+local Roact = ModuleLoader.require("Packages/roact")
+
+-- Импортируем компоненты
+local AbilityPanel = ModuleLoader.require("App/AbilityPanel")
+
+-- 1. Запускаем панель способностей мгновенно
+local abilityElement = Roact.createElement(AbilityPanel)
+local abilityHandle = Roact.mount(abilityElement, player:WaitForChild("PlayerGui"), "AbilityUI")
+
+-- 2. Создаем кнопку магазина
+
+local AppController = ModuleLoader.require("App/AppController")
+local shopHandle = nil
+local isShopOpen = false
+local mainHandle = nil
+
+-- Forward declaration
+local createMainUI
+
+-- Функция переключения магазина
+local function toggleShop()
+	print("🛒 Переключение магазина. Текущее состояние:", isShopOpen)
+	
+	if isShopOpen then
+		-- Закрываем магазин
+		print("🛒 Закрываем магазин...")
+		if shopHandle then
+			Roact.unmount(shopHandle)
+			shopHandle = nil
+			print("🛒 Магазин размонтирован")
+		end
+		isShopOpen = false
+	else
+		-- Открываем магазин
+		print("🛒 Открываем магазин...")
+		local element = Roact.createElement(AppController)
+		shopHandle = Roact.mount(element, player:WaitForChild("PlayerGui"), "ShopApp")
+		isShopOpen = true
+		print("🛒 Магазин смонтирован")
+	end
+	
+	-- Обновляем главный UI с новым состоянием кнопки
+	print("🛒 Обновляем кнопку магазина...")
+	if mainHandle then
+		Roact.unmount(mainHandle)
+	end
+	local mainElement = createMainUI()
+	mainHandle = Roact.mount(mainElement, player:WaitForChild("PlayerGui"), "MainInterfaceUI")
+	
+	print("🛒 Новое состояние магазина:", isShopOpen)
+end
+
+-- Создаем объединенный UI
+function createMainUI()
+	return Roact.createElement("ScreenGui", {
+		Name = "MainUI",
+		ResetOnSpawn = false,
+	}, {
+		-- Кнопка магазина (правая сторона, ближе к центру)
+		ShopButton = Roact.createElement("TextButton", {
+			BackgroundColor3 = isShopOpen and Color3.fromRGB(231, 76, 60) or Color3.fromRGB(255, 149, 0), -- Красный если открыт, оранжевый если закрыт
+			BorderSizePixel = 0,
+			Size = UDim2.new(0, 120, 0, 50),
+			Position = UDim2.new(1, -140, 0.5, -25), -- Правая сторона, центр по вертикали
+			Text = isShopOpen and "❌ ЗАКРЫТЬ" or "🛒 МАГАЗИН",
+			TextColor3 = Color3.fromRGB(255, 255, 255),
+			TextScaled = true,
+			Font = Enum.Font.GothamBold,
+			[Roact.Event.Activated] = toggleShop,
+		}, {
+			-- Скругление
+			Corner = Roact.createElement("UICorner", {
+				CornerRadius = UDim.new(0, 12),
+			}),
+			
+			-- Тень
+			Shadow = Roact.createElement("Frame", {
+				BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+				BackgroundTransparency = 0.7,
+				BorderSizePixel = 0,
+				Size = UDim2.new(1, 4, 1, 4),
+				Position = UDim2.new(0, -2, 0, 3),
+				ZIndex = -1,
+			}, {
+				Corner = Roact.createElement("UICorner", {
+					CornerRadius = UDim.new(0, 12),
+				}),
+			}),
+			
+			-- Рамка
+			Stroke = Roact.createElement("UIStroke", {
+				Color = isShopOpen and Color3.fromRGB(192, 57, 43) or Color3.fromRGB(200, 120, 0),
+				Thickness = 2,
+				Transparency = 0.3,
+			}),
+		}),
+	})
+end
+
+-- Монтируем главный UI
+local mainElement = createMainUI()
+mainHandle = Roact.mount(mainElement, player:WaitForChild("PlayerGui"), "MainInterfaceUI")
+
+-- Интерфейс загружен успешно

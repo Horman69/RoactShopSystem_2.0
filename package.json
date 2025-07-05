@@ -1,0 +1,47 @@
+{
+  "name": "roact-shop-system",
+  "version": "2.0.0",
+  "description": "Профессиональная система магазина для Roblox с использованием Roact, Rojo и строгой типизации",
+  "keywords": [
+    "roblox",
+    "roact",
+    "rojo",
+    "luau",
+    "shop",
+    "ecommerce",
+    "game-development"
+  ],
+  "author": "RoactShopSystem Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/RoactShopSystem.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/RoactShopSystem/issues"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/RoactShopSystem#readme",
+  "scripts": {
+    "build": "rojo build -o RoactShopSystem.rbxlx",
+    "serve": "rojo serve",
+    "serve-dev": "rojo serve --watch",
+    "sync": "rojo serve --port 34872",
+    "install": "wally install",
+    "clean": "rimraf Packages DevPackages *.rbxlx *.rbxl",
+    "lint": "selene src/",
+    "format": "stylua src/"
+  },
+  "engines": {
+    "rojo": ">=7.0.0",
+    "wally": ">=0.3.0"
+  },
+  "devDependencies": {},
+  "roblox": {
+    "target": "game",
+    "framework": "roact"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/YOUR_USERNAME"
+  }
+}

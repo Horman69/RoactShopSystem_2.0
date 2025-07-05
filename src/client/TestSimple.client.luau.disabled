@@ -1,0 +1,108 @@
+--!strict
+-- src/client/TestSimple.client.luau
+-- Простой тест для проверки что система загружается
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+print("🧪 TestSimple: Игрок подключился:", player.Name)
+
+-- Ждем загрузки персонажа
+local character = player.CharacterAdded:Wait()
+print("🧪 TestSimple: Персонаж загружен")
+
+-- Ждем чуть-чуть
+wait(1)
+
+-- Проверяем ModuleLoader
+local success, ModuleLoader = pcall(function()
+	return require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ModuleLoader"))
+end)
+
+if not success then
+	print("❌ TestSimple: Не удалось загрузить ModuleLoader:", ModuleLoader)
+	return
+end
+
+print("✅ TestSimple: ModuleLoader загружен")
+
+-- Проверяем AbilityConfig
+local success2, AbilityConfig = pcall(function()
+	return ModuleLoader.require("shared/AbilityConfig")
+end)
+
+if not success2 then
+	print("❌ TestSimple: Не удалось загрузить AbilityConfig:", AbilityConfig)
+	return
+end
+
+print("✅ TestSimple: AbilityConfig загружен")
+
+-- Проверяем способности
+local abilities = AbilityConfig.getAllAbilities()
+print("✅ TestSimple: Найдено способностей:", #abilities)
+
+for _, ability in ipairs(abilities) do
+	print("  - ", ability.name, "(ID:", ability.id, ")")
+end
+
+-- Проверяем AbilityService
+local success3, AbilityService = pcall(function()
+	return ModuleLoader.require("services/AbilityService")
+end)
+
+if not success3 then
+	print("❌ TestSimple: Не удалось загрузить AbilityService:", AbilityService)
+	return
+end
+
+print("✅ TestSimple: AbilityService загружен")
+
+-- Создаем простой UI для тестирования
+local playerGui = player:WaitForChild("PlayerGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TestSimpleUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 300, 0, 200)
+frame.Position = UDim2.new(0, 20, 0, 400)
+frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = frame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.Text = "🧪 Система тестирования"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 16
+title.Font = Enum.Font.GothamBold
+title.BackgroundTransparency = 1
+title.Parent = frame
+
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 1, -40)
+status.Position = UDim2.new(0, 10, 0, 30)
+status.Text = "✅ Система загружена успешно!\n" ..
+              "📦 ModuleLoader: ОК\n" ..
+              "⚡ AbilityConfig: ОК\n" ..
+              "🛠️ AbilityService: ОК\n" ..
+              "🎯 Способностей: " .. #abilities
+status.TextColor3 = Color3.fromRGB(200, 255, 200)
+status.TextSize = 14
+status.Font = Enum.Font.Gotham
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.TextYAlignment = Enum.TextYAlignment.Top
+status.BackgroundTransparency = 1
+status.TextWrapped = true
+status.Parent = frame
+
+print("✅ TestSimple: Простой UI создан. Система работает!")

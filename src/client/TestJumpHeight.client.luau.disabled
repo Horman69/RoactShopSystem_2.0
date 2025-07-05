@@ -1,0 +1,52 @@
+--!strict
+-- src/client/TestJumpHeight.client.luau
+-- Тест исправленной способности прыжка (JumpHeight)
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+wait(3)
+
+local player = Players.LocalPlayer
+if not player.Character or not player.Character:FindFirstChild("Humanoid") then
+	return
+end
+
+local humanoid = player.Character.Humanoid
+
+print("🦘 Тест способности прыжка (JumpHeight):")
+print("  Начальная высота прыжка:", humanoid.JumpHeight)
+
+-- Импорт и создание сервиса
+local ModuleLoader = require(ReplicatedStorage.shared.ModuleLoader)
+local AbilityService = ModuleLoader.require("services/AbilityService")
+local abilityService = AbilityService.new()
+
+wait(2)
+
+-- Тест прыжка
+local result = abilityService:activateAbility(player, "jump_boost")
+if result.success then
+	print("✅ Способность прыжка активирована!")
+	wait(1)
+	print("  Новая высота прыжка:", humanoid.JumpHeight)
+	print("  Увеличение в:", humanoid.JumpHeight / 7.2, "раз")
+	print("  Эффект завершится через 15 секунд")
+	
+	-- Мониторинг каждые 3 секунды
+	for i = 1, 5 do
+		wait(3)
+		print(string.format("  [%d сек] Высота прыжка: %.1f", i * 3, humanoid.JumpHeight))
+	end
+	
+	print("  Эффект должен был завершиться")
+	print("  Финальная высота прыжка:", humanoid.JumpHeight)
+	
+	if math.abs(humanoid.JumpHeight - 7.2) < 0.1 then
+		print("🎉 ТЕСТ ПРОЙДЕН! Прыжок восстановился к базовому значению")
+	else
+		print("❌ ТЕСТ НЕ ПРОЙДЕН! Прыжок не восстановился")
+	end
+else
+	print("❌ Ошибка:", result.message)
+end

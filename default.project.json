@@ -1,0 +1,39 @@
+{
+  "name": "RoactStarter",
+  "tree": {
+    "$className": "DataModel",    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Packages": {
+        "$path": "Packages"
+      },
+      "shared": {
+        "$path": "src/shared"
+      },
+      "services": {
+        "$path": "src/services"
+      },
+      "Shop": {
+        "$path": "src/Shop"
+      },
+      "App": {
+        "$path": "src/App"
+      }
+    },
+
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server"
+      }
+    },
+
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "client": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}
