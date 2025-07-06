@@ -1,0 +1,86 @@
+# RoactShopSystem - Профессиональная система магазина для Roblox
+# Файлы, которые не нужно коммитить в репозиторий
+
+# Roblox Studio files
+*.rbxlx
+*.rbxl
+*.rbxm
+*.rbxmx
+*.rbxlx.lock
+*.rbxl.lock
+
+# Rojo и Wally
+Packages/
+DevPackages/
+wally.lock
+*.toml.lock
+
+# Логи и временные файлы
+*.log
+*.tmp
+*.temp
+*.cache
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Node.js (если используется для инструментов)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Результаты тестирования
+test-results/
+coverage/
+*.tsbuildinfo
+
+# Локальные конфиги разработчика
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Профайлы производительности
+chrome-profiler-events*.json
+speed-measure-plugin*.json
+
+# Документация (генерируемая)
+/docs/build/
+
+# Backup файлы
+*.backup
+*.bak
+*.old
