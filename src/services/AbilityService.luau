@@ -77,9 +77,9 @@ function AbilityService.new(): AbilityServiceInterface
 	-- Инициализируем PlayerStatsService
 	PlayerStatsService = ModuleLoader.require("services/PlayerStatsService").new()
 	
-	-- Инициализируем SoundService для звуков способностей
-	local SoundService = ModuleLoader.require("services/SoundService").new()
-	self.soundService = SoundService
+	-- SoundService удалён - больше не используется
+	-- local SoundService = ModuleLoader.require("services/SoundService").new()
+	-- self.soundService = SoundService
 	
 	-- Запускаем цикл обновления эффектов
 	self:_startEffectUpdateLoop()
@@ -128,10 +128,10 @@ function AbilityService:activateAbility(player: Player, abilityId: string): Abil
 	if not self:isAbilityOwned(player, abilityId) then
 		print("AbilityService: Игрок", player.Name, "не владеет способностью", abilityId)
 		
-		-- Воспроизводим звук ошибки (нет способности)
-		if self.soundService then
-			self.soundService:playAbilityCooldownSound()
-		end
+		-- Звук ошибки отключён
+		-- if self.soundService then
+		-- 	self.soundService:playAbilityCooldownSound()
+		-- end
 		
 		return {
 			success = false,
@@ -148,10 +148,10 @@ function AbilityService:activateAbility(player: Player, abilityId: string): Abil
 		local timeLeft = self:getCooldownTimeLeft(player, abilityId)
 		print("AbilityService: Способность на кулдауне, осталось", timeLeft, "сек")
 		
-		-- Воспроизводим звук ошибки кулдауна
-		if self.soundService then
-			self.soundService:playAbilityCooldownSound()
-		end
+		-- Звук кулдауна отключён
+		-- if self.soundService then
+		-- 	self.soundService:playAbilityCooldownSound()
+		-- end
 		
 		return {
 			success = false,
@@ -207,10 +207,10 @@ function AbilityService:activateAbility(player: Player, abilityId: string): Abil
 		PlayerStatsService:applyEffect(player, effect, abilityId)
 	end
 	
-	-- Воспроизводим звук использования способности
-	if self.soundService then
-		self.soundService:playAbilityUseSound()
-	end
+	-- Звук использования способности отключён
+	-- if self.soundService then
+	-- 	self.soundService:playAbilityUseSound()
+	-- end
 	
 	-- Уведомляем подписчиков
 	self:_notifyAbilityActivated(player, ability)
@@ -266,6 +266,12 @@ function AbilityService:isAbilityOnCooldown(player: Player, abilityId: string): 
 	return self:getCooldownTimeLeft(player, abilityId) > 0
 end
 
+-- Проверить, должна ли способность показываться как недоступная в UI
+function AbilityService:isAbilityUnavailableForUI(player: Player, abilityId: string): boolean
+	local timeLeft = self:getUITimeLeft(player, abilityId)
+	return timeLeft > 0.1 -- Считаем недоступной только если осталось больше 0.1 секунды
+end
+
 -- Получить время до окончания кулдауна
 function AbilityService:getCooldownTimeLeft(player: Player, abilityId: string): number
 	local playerState = self:getPlayerState(player)
@@ -277,6 +283,25 @@ function AbilityService:getCooldownTimeLeft(player: Player, abilityId: string): 
 	
 	local timeLeft = cooldownEnd - tick()
 	return math.max(0, timeLeft)
+end
+
+-- Получить время для отображения в UI (включает активный эффект + кулдаун)
+function AbilityService:getUITimeLeft(player: Player, abilityId: string): number
+	local playerState = self:getPlayerState(player)
+	local currentTime = tick()
+	
+	-- Проверяем активный эффект
+	local activeEffect = playerState.activeEffects[abilityId]
+	if activeEffect then
+		-- Показываем время до окончания эффекта
+		local effectTimeLeft = (activeEffect.startTime + activeEffect.duration) - currentTime
+		if effectTimeLeft > 0 then
+			return effectTimeLeft
+		end
+	end
+	
+	-- Если эффекта нет, показываем обычный кулдаун
+	return self:getCooldownTimeLeft(player, abilityId)
 end
 
 -- Выдать способность игроку
@@ -332,6 +357,11 @@ function AbilityService:clearExpiredEffects(player: Player): ()
 			if PlayerStatsService then
 				PlayerStatsService:removeEffect(player, abilityId)
 			end
+			
+			-- Звук окончания эффекта отключён
+			-- if self.soundService then
+			-- 	self.soundService:playAbilityEffectEndedSound()
+			-- end
 			
 			self:_notifyEffectExpired(player, abilityId)
 			print("AbilityService: Эффект", abilityId, "истек у игрока", player.Name)

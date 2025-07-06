@@ -44,11 +44,11 @@ function ModuleLoader.preloadCriticalModules(): ()
 	local criticalModules = {
 		"Packages/roact",
 		"shared/Types",
-		"Shop/Wallet",
 		"Shop/ShopData",
 		"services/CurrencyService",
 		"services/ShopService",
-		"services/SoundService",
+		-- SoundService удалён - больше не используется
+		-- Wallet удалён - заменён на CurrencyService
 	}
 	
 	for _, modulePath in ipairs(criticalModules) do

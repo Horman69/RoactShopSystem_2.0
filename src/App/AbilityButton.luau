@@ -9,6 +9,7 @@ local TweenService = game:GetService("TweenService")
 -- Импортируем зависимости
 local ModuleLoader = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ModuleLoader"))
 local Roact = ModuleLoader.require("Packages/roact")
+local PlatformService = ModuleLoader.require("services/PlatformService")
 
 -- Импортируем типы
 local Types = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("Types"))
@@ -63,12 +64,19 @@ function AbilityButton:init()
 		isHovering = false,
 		isPressing = false,
 	})
+	
+	-- Инициализируем PlatformService
+	self.platformService = PlatformService.new()
 end
 
 function AbilityButton:render()
 	local props = self.props
 	local state = self.state
 	local ability = props.ability
+	
+	-- Получаем адаптивные размеры
+	local isMobile = self.platformService:isMobile()
+	local scaleFactor = self.platformService:getScaleFactor()
 	
 	-- Определяем состояние кнопки
 	local isDisabled = props.isOnCooldown or not props.isOwned
@@ -104,7 +112,7 @@ function AbilityButton:render()
 	end
 	
 	return Roact.createElement("TextButton", {
-		Size = props.size or UDim2.new(0, 200, 0, 80),
+		Size = props.size or UDim2.new(0, isMobile and 280 or 200, 0, isMobile and 100 or 80),
 		Position = props.position or UDim2.new(0, 0, 0, 0),
 		BackgroundColor3 = backgroundColor,
 		BorderSizePixel = 0,
@@ -139,6 +147,17 @@ function AbilityButton:render()
 				end
 			end
 		end,
+		
+		-- Touch events для мобильных устройств
+		[Roact.Event.TouchTap] = function()
+			if not isDisabled then
+				if props.isOwned then
+					props.onActivate(ability.id)
+				elseif props.onPurchase then
+					props.onPurchase(ability)
+				end
+			end
+		end,
 	}, {
 		-- Скругленные углы
 		UICorner = Roact.createElement("UICorner", {
@@ -156,12 +175,12 @@ function AbilityButton:render()
 		
 		-- Основной текст способности
 		NameLabel = Roact.createElement("TextLabel", {
-			Size = UDim2.new(1, -20, 0, 32),
-			Position = UDim2.new(0, 10, 0, 8),
+			Size = UDim2.new(1, -20, 0, isMobile and 36 or 32),
+			Position = UDim2.new(0, 10, 0, isMobile and 10 or 8),
 			BackgroundTransparency = 1,
 			Text = buttonText,
 			TextColor3 = textColor,
-			TextSize = 18,
+			TextSize = isMobile and 20 or 18,
 			Font = Enum.Font.GothamSemibold,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextYAlignment = Enum.TextYAlignment.Center,
@@ -169,12 +188,12 @@ function AbilityButton:render()
 		
 		-- Описание способности
 		DescriptionLabel = Roact.createElement("TextLabel", {
-			Size = UDim2.new(1, -20, 0, 20),
-			Position = UDim2.new(0, 10, 0, 35),
+			Size = UDim2.new(1, -20, 0, isMobile and 24 or 20),
+			Position = UDim2.new(0, 10, 0, isMobile and 42 or 35),
 			BackgroundTransparency = 1,
 			Text = ability.description,
 			TextColor3 = Color3.fromRGB(180, 180, 180),
-			TextSize = 12,
+			TextSize = isMobile and 14 or 12,
 			Font = Enum.Font.Gotham,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextYAlignment = Enum.TextYAlignment.Top,
@@ -183,15 +202,15 @@ function AbilityButton:render()
 		
 		-- Статус (цена, кулдаун, активность)
 		StatusLabel = statusText ~= "" and Roact.createElement("TextLabel", {
-			Size = UDim2.new(1, -20, 0, 16),
-			Position = UDim2.new(0, 10, 1, -24),
+			Size = UDim2.new(1, -20, 0, isMobile and 20 or 16),
+			Position = UDim2.new(0, 10, 1, isMobile and -28 or -24),
 			BackgroundTransparency = 1,
 			Text = statusText,
 			TextColor3 = not props.isOwned and BUTTON_STYLE.ACCENT_GOLD or 
 						 props.isOnCooldown and BUTTON_STYLE.TEXT_COOLDOWN or
 						 isActive and BUTTON_STYLE.ACCENT_GREEN or
 						 textColor,
-			TextSize = 14,
+			TextSize = isMobile and 16 or 14,
 			Font = Enum.Font.GothamBold,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			TextYAlignment = Enum.TextYAlignment.Center,

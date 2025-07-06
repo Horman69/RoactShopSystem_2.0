@@ -11,13 +11,15 @@ local UserInputService = game:GetService("UserInputService")
 local ModuleLoader = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ModuleLoader"))
 local Roact = ModuleLoader.require("Packages/roact")
 local AbilityService = ModuleLoader.require("services/AbilityService")
-local SoundService = ModuleLoader.require("services/SoundService")
+local SimpleSoundService = ModuleLoader.require("services/SimpleSoundService")
+local PlatformService = ModuleLoader.require("services/SimplePlatformService")
 
 local AbilityPanel = Roact.Component:extend("AbilityPanel")
 
 function AbilityPanel:init()
 	self.abilityService = AbilityService.new()
-	self.soundService = SoundService.new()
+	self.soundService = SimpleSoundService.new()
+	self.platformService = PlatformService.new()
 	
 	-- Рефы для анимации кнопок
 	self.buttonRefs = {}
@@ -89,42 +91,36 @@ function AbilityPanel:updateState()
 	local baseAbilities = {"speed_boost", "shield_aura", "jump_boost"}
 	
 	for _, abilityId in ipairs(baseAbilities) do
-		local isOnCooldown = self.abilityService:isAbilityOnCooldown(player, abilityId)
+		local isOnCooldown = self.abilityService:isAbilityUnavailableForUI(player, abilityId)
 		local wasOnCooldown = self.previousCooldowns[abilityId] or false
 		
 		cooldowns[abilityId] = isOnCooldown
 		
 		-- Проверяем, закончился ли кулдаун (был на кулдауне, теперь нет)
 		if wasOnCooldown and not isOnCooldown then
-			-- Кулдаун закончился - воспроизводим звук
-			if self.soundService then
-				self.soundService:playCooldownFinishedSound()
-			end
+			-- Кулдаун закончился
 			print("AbilityPanel: Кулдаун способности", abilityId, "закончился!")
 		end
 		
 		if isOnCooldown then
-			cooldownTimes[abilityId] = self.abilityService:getCooldownTimeLeft(player, abilityId)
+			cooldownTimes[abilityId] = self.abilityService:getUITimeLeft(player, abilityId)
 		end
 	end
 	
 	-- Также проверяем купленные способности (для особых способностей в будущем)
 	for _, ability in ipairs(self.state.abilities) do
-		local isOnCooldown = self.abilityService:isAbilityOnCooldown(player, ability.id)
+		local isOnCooldown = self.abilityService:isAbilityUnavailableForUI(player, ability.id)
 		local wasOnCooldown = self.previousCooldowns[ability.id] or false
 		
 		cooldowns[ability.id] = isOnCooldown
 		
 		-- Проверяем окончание кулдауна
 		if wasOnCooldown and not isOnCooldown then
-			if self.soundService then
-				self.soundService:playCooldownFinishedSound()
-			end
 			print("AbilityPanel: Кулдаун способности", ability.id, "закончился!")
 		end
 		
 		if isOnCooldown then
-			cooldownTimes[ability.id] = self.abilityService:getCooldownTimeLeft(player, ability.id)
+			cooldownTimes[ability.id] = self.abilityService:getUITimeLeft(player, ability.id)
 		end
 	end
 	
@@ -298,6 +294,17 @@ function AbilityPanel:createSimpleButton(ability, index: number)
 		self.buttonRefs[ability.id] = Roact.createRef()
 	end
 	
+	-- 📱 АДАПТИВНОЕ ПОЗИЦИОНИРОВАНИЕ
+	local isMobile = self.platformService:isMobile()
+	local position
+	if isMobile then
+		-- Мобильная версия: вертикальное размещение (Y координата меняется)
+		position = UDim2.new(0, 0, 0, (index - 1) * 72)
+	else
+		-- Десктопная версия: горизонтальное размещение (X координата меняется)
+		position = UDim2.new(0, (index - 1) * 72, 0, 0)
+	end
+	
 	-- ОБЫЧНАЯ КНОПКА С ПРОСТЫМИ АНИМАЦИЯМИ (БЕЗ ЛИШНЕГО FRAME)
 	return Roact.createElement("TextButton", {
 		[Roact.Ref] = self.buttonRefs[ability.id],
@@ -305,7 +312,7 @@ function AbilityPanel:createSimpleButton(ability, index: number)
 		BackgroundTransparency = transparency,
 		BorderSizePixel = 0,
 		Size = UDim2.new(0, 64, 0, 64),
-		Position = UDim2.new(0, (index - 1) * 72, 0, 0),
+		Position = position,
 		Text = "",
 		AutoButtonColor = false,
 		[Roact.Event.Activated] = function()
@@ -421,13 +428,24 @@ function AbilityPanel:createEmptySlot(slot, index: number)
 		self.buttonRefs[slot.abilityId] = Roact.createRef()
 	end
 	
+	-- 📱 АДАПТИВНОЕ ПОЗИЦИОНИРОВАНИЕ
+	local isMobile = self.platformService:isMobile()
+	local position
+	if isMobile then
+		-- Мобильная версия: вертикальное размещение (Y координата меняется)
+		position = UDim2.new(0, 0, 0, (index - 1) * 72)
+	else
+		-- Десктопная версия: горизонтальное размещение (X координата меняется)
+		position = UDim2.new(0, (index - 1) * 72, 0, 0)
+	end
+	
 	return Roact.createElement("TextButton", {
 		[Roact.Ref] = self.buttonRefs[slot.abilityId],
 		BackgroundColor3 = backgroundColor,
 		BackgroundTransparency = 0.2, -- Немного прозрачные для индикации
 		BorderSizePixel = 0,
 		Size = UDim2.new(0, 64, 0, 64),
-		Position = UDim2.new(0, (index - 1) * 72, 0, 0),
+		Position = position,
 		Text = "", -- Убираем текст кнопки
 		AutoButtonColor = false,
 		[Roact.Event.Activated] = function()
@@ -531,10 +549,23 @@ function AbilityPanel:render()
 		{hotkey = "R", abilityId = "jump_boost", icon = "🚀", name = "Прыжок"},
 	}
 	
+	-- 📱 АДАПТИВНАЯ ЛОГИКА РАЗМЕЩЕНИЯ
+	local isMobile = self.platformService:isMobile()
+	
 	local buttonSize = 64
 	local spacing = 72  -- Общий spacing (64 размер кнопки + 8 отступ)
-	local totalWidth = (#baseAbilitySlots - 1) * spacing + buttonSize  -- Последняя кнопка без spacing
-	local totalHeight = buttonSize
+	
+	-- Для мобильных - вертикальное размещение, для десктопа - горизонтальное
+	local totalWidth, totalHeight
+	if isMobile then
+		-- Мобильная версия: вертикальный столбец
+		totalWidth = buttonSize
+		totalHeight = (#baseAbilitySlots - 1) * spacing + buttonSize
+	else
+		-- Десктопная версия: горизонтальная полоса
+		totalWidth = (#baseAbilitySlots - 1) * spacing + buttonSize
+		totalHeight = buttonSize
+	end
 	
 	local abilityButtons = {}
 	for i, slot in ipairs(baseAbilitySlots) do
@@ -566,7 +597,9 @@ function AbilityPanel:render()
 			BackgroundTransparency = 0.05, -- Почти непрозрачный
 			BorderSizePixel = 0,
 			Size = UDim2.new(0, totalWidth + 16, 0, totalHeight + 16),
-			Position = UDim2.new(0.5, -(totalWidth + 16) / 2, 1, -totalHeight - 32),
+			Position = isMobile and 
+				UDim2.new(1, -(totalWidth + 16 + 20), 0.3, -(totalHeight + 16) / 2) or -- Мобильная: правый край, выше центра
+				UDim2.new(0.5, -(totalWidth + 16) / 2, 1, -totalHeight - 32), -- Десктопная: снизу по центру
 		}, {
 			-- СОВРЕМЕННОЕ СКРУГЛЕНИЕ
 			Corner = Roact.createElement("UICorner", {
