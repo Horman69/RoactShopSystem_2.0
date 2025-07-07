@@ -29,13 +29,9 @@ local ProductCard = Roact.Component:extend("ProductCard")
 
 function ProductCard:init()
 	self.platformService = PlatformService.new()
-	self.strokeRef = Roact.createRef() -- Для эффектов наведения
-end
-
--- Получить иконку для категории товара
-function ProductCard:getCategoryIcon(category: string?): string
-	local categoryConfig = ShopConfig.getCategoryConfig(category or "other")
-	return categoryConfig.icon
+	self.strokeRef = Roact.createRef() -- Для эффектов наведения на обводку
+	self.cardRef = Roact.createRef() -- Для эффектов масштабирования карточки
+	self.buttonRef = Roact.createRef() -- Для эффектов кнопки
 end
 
 -- Получить цвет для категории
@@ -58,17 +54,29 @@ function ProductCard:getButtonState(): (string, Color3, boolean)
 	end
 end
 
--- Эффект при наведении мыши (как у способностей)
+-- Простые эффекты без анимации для лучшей производительности
 function ProductCard:onCardHover(isHovering: boolean)
-	local stroke = self.strokeRef.current
-	if stroke then
-		local targetTransparency = isHovering and 0.1 or 0.3
-		local tween = TweenService:Create(stroke,
-			TweenInfo.new(ShopConfig.design.animations.fast, ShopConfig.design.animations.easing, ShopConfig.design.animations.direction),
-			{ Transparency = targetTransparency }
-		)
-		tween:Play()
+	local card = self.cardRef.current
+	if card then
+		-- Простое изменение цвета фона при наведении на карточку
+		if isHovering then
+			card.BackgroundColor3 = ShopConfig.design.colors.background.cardHover
+		else
+			card.BackgroundColor3 = ShopConfig.design.colors.background.card
+		end
 	end
+end
+
+function ProductCard:onButtonHover(isHovering: boolean)
+	local button = self.buttonRef.current
+	if button then
+		-- Простое изменение прозрачности без анимации
+		button.BackgroundTransparency = isHovering and 0.1 or 0.0
+	end
+end
+
+function ProductCard:onButtonPress()
+	-- Убираем анимацию нажатия - только звуковая обратная связь
 end
 
 function ProductCard:render()
@@ -80,7 +88,6 @@ function ProductCard:render()
 	local cardDimensions = ShopConfig.getCardDimensions(isMobile)
 	
 	-- Получаем данные для отображения
-	local categoryIcon = self:getCategoryIcon(product.category)
 	local categoryColor = self:getCategoryColor(product.category)
 	local buttonText, buttonColor, buttonEnabled = self:getButtonState()
 	
@@ -88,17 +95,17 @@ function ProductCard:render()
 	local cardHeight = cardDimensions.height
 	local spacing = cardDimensions.spacing
 	local typography = responsiveConfig.typography
-	local iconSize = isMobile and 28 or 32
 	local buttonWidth = isMobile and 85 or 95
 	local buttonHeight = cardDimensions.buttonHeight
 	
 	return Roact.createElement("Frame", {
 		Size = UDim2.new(1, 0, 0, cardHeight),
-		BackgroundColor3 = ShopConfig.design.colors.cardBackground,
+		BackgroundColor3 = ShopConfig.design.colors.background.card,
 		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
+		[Roact.Ref] = self.cardRef,
 		
-		-- События наведения (как у способностей)
+		-- Современные события наведения
 		[Roact.Event.MouseEnter] = function()
 			self:onCardHover(true)
 		end,
@@ -106,71 +113,40 @@ function ProductCard:render()
 			self:onCardHover(false)
 		end,
 	}, {
-		-- Скругление как у иконок способностей
+		-- Современное скругление карточки
 		UICorner = Roact.createElement("UICorner", {
-			CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.medium),
+			CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.card),
 		}),
 		
-		-- Светящаяся обводка как у иконок способностей
+		-- Современная светящаяся обводка
 		UIStroke = Roact.createElement("UIStroke", {
 			Color = categoryColor,
-			Thickness = 2,
-			Transparency = 0.3,
-			[Roact.Ref] = self.strokeRef, -- Добавляем ref для эффектов
+			Thickness = ShopConfig.design.stroke.thickness,
+			Transparency = 0.4,
+			[Roact.Ref] = self.strokeRef,
 		}),
 		
-		-- Тень для глубины
+		-- Современная тень для глубины
 		Shadow = Roact.createElement("Frame", {
-			Size = UDim2.new(1, 4, 1, 6),
-			Position = UDim2.new(0, 2, 0, 3),
-			BackgroundColor3 = ShopConfig.design.colors.shadow,
-			BackgroundTransparency = 0.85,
+			Size = UDim2.new(1, ShopConfig.design.shadow.offset.x * 2, 1, ShopConfig.design.shadow.offset.y * 2),
+			Position = UDim2.new(0, ShopConfig.design.shadow.offset.x, 0, ShopConfig.design.shadow.offset.y),
+			BackgroundColor3 = ShopConfig.design.shadow.color,
+			BackgroundTransparency = ShopConfig.design.shadow.transparency,
 			BorderSizePixel = 0,
 			ZIndex = -1,
 		}, {
 			UICorner = Roact.createElement("UICorner", {
-				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.medium),
-			}),
-		}),
-		
-		-- Стильная иконка категории в стиле способностей
-		CategoryIcon = Roact.createElement("Frame", {
-			Size = UDim2.new(0, iconSize + 8, 0, iconSize + 8),
-			Position = UDim2.new(0, ShopConfig.design.spacing.padding.medium + 6, 0, ShopConfig.design.spacing.gaps.medium),
-			BackgroundColor3 = categoryColor,
-			BackgroundTransparency = 0.8,
-			BorderSizePixel = 0,
-		}, {
-			UICorner = Roact.createElement("UICorner", {
-				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.round), -- Круглая иконка
-			}),
-			
-			-- Светящаяся обводка иконки
-			UIStroke = Roact.createElement("UIStroke", {
-				Color = categoryColor,
-				Thickness = 2,
-				Transparency = 0.3,
-			}),
-			
-			Icon = Roact.createElement("TextLabel", {
-				Text = categoryIcon,
-				Size = UDim2.new(1, 0, 1, 0),
-				BackgroundTransparency = 1,
-				TextColor3 = categoryColor,
-				TextSize = iconSize * 0.8,
-				Font = Enum.Font.GothamBold,
-				TextXAlignment = Enum.TextXAlignment.Center,
-				TextYAlignment = Enum.TextYAlignment.Center,
+				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.card),
 			}),
 		}),
 		
 		-- Основная информация о товаре
 		ProductInfo = Roact.createElement("Frame", {
 			Size = UDim2.new(1, -(buttonWidth + ShopConfig.design.spacing.padding.large), 1, -ShopConfig.design.spacing.gaps.large),
-			Position = UDim2.new(0, iconSize + ShopConfig.design.spacing.padding.large + 8, 0, ShopConfig.design.spacing.gaps.medium),
+			Position = UDim2.new(0, ShopConfig.design.spacing.padding.large, 0, ShopConfig.design.spacing.gaps.medium),
 			BackgroundTransparency = 1,
 		}, {
-			-- Название товара
+			-- Название товара (современная типографика)
 			ProductName = Roact.createElement("TextLabel", {
 				Text = product.name,
 				Size = UDim2.new(1, 0, 0, typography.title + 2),
@@ -178,13 +154,13 @@ function ProductCard:render()
 				BackgroundTransparency = 1,
 				TextColor3 = ShopConfig.design.colors.text.primary,
 				TextSize = typography.title,
-				Font = Enum.Font.GothamBold,
+				Font = ShopConfig.design.colors.text.fonts.bold,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextYAlignment = Enum.TextYAlignment.Top,
 				TextTruncate = Enum.TextTruncate.AtEnd,
 			}),
 			
-			-- Цена товара
+			-- Цена товара (с золотым акцентом)
 			ProductPrice = Roact.createElement("TextLabel", {
 				Text = "💰 " .. product.price .. " монет",
 				Size = UDim2.new(1, 0, 0, typography.price + 2),
@@ -192,12 +168,12 @@ function ProductCard:render()
 				BackgroundTransparency = 1,
 				TextColor3 = ShopConfig.design.colors.text.accent,
 				TextSize = typography.price,
-				Font = Enum.Font.GothamBold,
+				Font = ShopConfig.design.colors.text.fonts.bold,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextYAlignment = Enum.TextYAlignment.Top,
 			}),
 			
-			-- Описание товара  
+			-- Описание товара (современная типографика)
 			ProductDescription = Roact.createElement("TextLabel", {
 				Text = product.description,
 				Size = UDim2.new(1, 0, 0, typography.description + 8),
@@ -205,7 +181,7 @@ function ProductCard:render()
 				BackgroundTransparency = 1,
 				TextColor3 = ShopConfig.design.colors.text.secondary,
 				TextSize = typography.description,
-				Font = Enum.Font.Gotham,
+				Font = ShopConfig.design.colors.text.fonts.regular,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextYAlignment = Enum.TextYAlignment.Top,
 				TextWrapped = true,
@@ -213,7 +189,7 @@ function ProductCard:render()
 			}),
 		}),
 		
-		-- Стильная кнопка покупки с эффектами
+		-- Современная кнопка покупки с эффектами
 		PurchaseButton = Roact.createElement("TextButton", {
 			Text = buttonText,
 			Size = UDim2.new(0, buttonWidth, 0, buttonHeight),
@@ -222,56 +198,41 @@ function ProductCard:render()
 			BackgroundTransparency = 0,
 			BorderSizePixel = 0,
 			Active = buttonEnabled,
-			TextColor3 = Color3.fromRGB(255, 255, 255),
-			TextSize = typography.button,
-			Font = Enum.Font.GothamBold,
+			TextColor3 = ShopConfig.design.colors.text.button,
+			TextSize = typography.button + 4, -- Увеличили шрифт кнопки "Купить"
+			Font = ShopConfig.design.colors.text.fonts.bold,
 			AutoButtonColor = false,
-			Modal = true, -- ДОБАВЛЕНО: отключаем стандартные звуки Roblox
+			Modal = true, -- Отключаем стандартные звуки Roblox
+			[Roact.Ref] = self.buttonRef,
 			
+			-- Современные события кнопки
+			[Roact.Event.MouseEnter] = buttonEnabled and function()
+				self:onButtonHover(true)
+			end or nil,
+			[Roact.Event.MouseLeave] = buttonEnabled and function()
+				self:onButtonHover(false)
+			end or nil,
+			[Roact.Event.MouseButton1Down] = buttonEnabled and function()
+				self:onButtonPress()
+			end or nil,
 			[Roact.Event.Activated] = buttonEnabled and function()
 				self.props.onPurchase(product)
 			end or nil,
 		}, {
-			-- Скругление кнопки
+			-- Современное скругление кнопки
 			UICorner = Roact.createElement("UICorner", {
-				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.medium),
+				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.button),
 			}),
 			
 			-- Светящаяся обводка кнопки
 			UIStroke = buttonEnabled and Roact.createElement("UIStroke", {
 				Color = buttonColor,
-				Thickness = 1,
+				Thickness = ShopConfig.design.stroke.thickness,
 				Transparency = 0.6,
 			}) or nil,
-			
-			-- Градиент кнопки
-			UIGradient = buttonEnabled and Roact.createElement("UIGradient", {
-				Color = ColorSequence.new({
-					ColorSequenceKeypoint.new(0, buttonColor),
-					ColorSequenceKeypoint.new(1, Color3.fromRGB(
-						math.max(0, buttonColor.R * 255 - 30) / 255,
-						math.max(0, buttonColor.G * 255 - 30) / 255,
-						math.max(0, buttonColor.B * 255 - 30) / 255
-					)),
-				}),
-				Rotation = 90,
-			}) or nil,
-			
-			-- Тень кнопки
-			ButtonShadow = Roact.createElement("Frame", {
-				Size = UDim2.new(1, 4, 1, 6),
-				Position = UDim2.new(0, 2, 0, 3),
-				BackgroundColor3 = buttonColor,
-				BackgroundTransparency = 0.8,
-				BorderSizePixel = 0,
-				ZIndex = -1,
-			}, {
-				UICorner = Roact.createElement("UICorner", {
-					CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.medium),
-				}),
-			}),
 		}),
 	})
 end
 
 return ProductCard
+

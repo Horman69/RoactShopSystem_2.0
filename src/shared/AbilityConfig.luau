@@ -11,10 +11,10 @@ type AbilityList = Types.AbilityList
 -- ===== КОНФИГУРАЦИЯ СПОСОБНОСТЕЙ =====
 
 local ABILITY_CONFIG: AbilityList = {
-	-- 🏃 СПОСОБНОСТЬ УСКОРЕНИЯ
+	-- ⚡ СПОСОБНОСТЬ УСКОРЕНИЯ
 	{
 		id = "speed_boost",
-		name = "🏃 Ускорение",
+		name = "⚡ Ускорение",
 		description = "Увеличивает скорость бега до 32 на 15 секунд",
 		category = "Movement",
 		baseDuration = 15, -- секунд
@@ -27,7 +27,7 @@ local ABILITY_CONFIG: AbilityList = {
 				target = "WalkSpeed"
 			}
 		},
-		icon = "🏃",
+		icon = "⚡",
 		isStackable = false,
 		-- Дополнительные настройки
 		hotkey = "Q", -- горячая клавиша
@@ -59,10 +59,10 @@ local ABILITY_CONFIG: AbilityList = {
 		shieldTransparency = 0.7,
 	},
 	
-	-- ⬆️ СПОСОБНОСТЬ ПРЫЖКА
+	-- 🚀 СПОСОБНОСТЬ ПРЫЖКА
 	{
 		id = "jump_boost",
-		name = "⬆️ Супер прыжок",
+		name = "🚀 Супер прыжок",
 		description = "Увеличивает высоту прыжка в 1.5 раза на 15 секунд",
 		category = "Movement", 
 		baseDuration = 15,
@@ -75,7 +75,7 @@ local ABILITY_CONFIG: AbilityList = {
 				target = "JumpHeight"
 			}
 		},
-		icon = "⬆️",
+		icon = "🚀",
 		isStackable = false,
 		-- Дополнительные настройки
 		hotkey = "R",

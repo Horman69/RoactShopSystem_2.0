@@ -11,8 +11,9 @@ local ModuleLoader = require(ReplicatedStorage:WaitForChild("shared"):WaitForChi
 local Roact = ModuleLoader.require("Packages/roact")
 local PlatformService = ModuleLoader.require("services/PlatformService")
 
--- Импортируем типы
+-- Типы и конфигурация
 local Types = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("Types"))
+local ShopConfig = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ShopConfig"))
 type Ability = Types.Ability
 
 -- Пропсы компонента
@@ -28,33 +29,11 @@ type AbilityButtonProps = {
 	size: UDim2?,
 }
 
--- Стиль кнопки (в едином стиле проекта)
-local BUTTON_STYLE = {
-	-- Основные цвета
-	BACKGROUND_DEFAULT = Color3.fromRGB(40, 44, 52),
-	BACKGROUND_HOVER = Color3.fromRGB(50, 54, 62),
-	BACKGROUND_ACTIVE = Color3.fromRGB(0, 170, 255),
-	BACKGROUND_COOLDOWN = Color3.fromRGB(25, 25, 25),
-	BACKGROUND_NOT_OWNED = Color3.fromRGB(60, 60, 60),
-	
-	-- Цвета текста
-	TEXT_DEFAULT = Color3.fromRGB(255, 255, 255),
-	TEXT_COOLDOWN = Color3.fromRGB(150, 150, 150),
-	TEXT_NOT_OWNED = Color3.fromRGB(200, 200, 200),
-	TEXT_ACTIVE = Color3.fromRGB(255, 255, 255),
-	
-	-- Акцентные цвета
-	ACCENT_BLUE = Color3.fromRGB(0, 170, 255),
-	ACCENT_GREEN = Color3.fromRGB(0, 200, 120),
-	ACCENT_RED = Color3.fromRGB(255, 100, 100),
-	ACCENT_GOLD = Color3.fromRGB(255, 215, 0),
-}
-
--- Информация о твинах
+-- Современная информация о твинах
 local TWEEN_INFO = {
-	HOVER = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-	PRESS = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-	COOLDOWN = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out),
+	HOVER = TweenInfo.new(ShopConfig.design.animations.duration, ShopConfig.design.animations.easing),
+	PRESS = TweenInfo.new(0.1, ShopConfig.design.animations.easing),
+	COOLDOWN = TweenInfo.new(0.3, ShopConfig.design.animations.easing),
 }
 
 local AbilityButton = Roact.Component:extend("AbilityButton")
@@ -82,21 +61,25 @@ function AbilityButton:render()
 	local isDisabled = props.isOnCooldown or not props.isOwned
 	local isActive = props.isActive or false
 	
-	-- Выбираем цвета в зависимости от состояния
-	local backgroundColor = BUTTON_STYLE.BACKGROUND_DEFAULT
-	local textColor = BUTTON_STYLE.TEXT_DEFAULT
+	-- Выбираем современные цвета в зависимости от состояния
+	local backgroundColor = ShopConfig.design.colors.button.primary
+	local textColor = ShopConfig.design.colors.text.button
 	
 	if not props.isOwned then
-		backgroundColor = BUTTON_STYLE.BACKGROUND_NOT_OWNED
-		textColor = BUTTON_STYLE.TEXT_NOT_OWNED
+		backgroundColor = ShopConfig.design.colors.button.disabled
+		textColor = ShopConfig.design.colors.text.secondary
 	elseif props.isOnCooldown then
-		backgroundColor = BUTTON_STYLE.BACKGROUND_COOLDOWN
-		textColor = BUTTON_STYLE.TEXT_COOLDOWN
+		backgroundColor = ShopConfig.design.colors.button.disabled
+		textColor = ShopConfig.design.colors.text.disabled
 	elseif isActive then
-		backgroundColor = BUTTON_STYLE.BACKGROUND_ACTIVE
-		textColor = BUTTON_STYLE.TEXT_ACTIVE
+		backgroundColor = ShopConfig.design.colors.button.success
+		textColor = ShopConfig.design.colors.text.button
 	elseif state.isHovering and props.isOwned and not props.isOnCooldown then
-		backgroundColor = BUTTON_STYLE.BACKGROUND_HOVER
+		backgroundColor = Color3.new(
+			math.min(1, ShopConfig.design.colors.button.primary.R * 1.1),
+			math.min(1, ShopConfig.design.colors.button.primary.G * 1.1),
+			math.min(1, ShopConfig.design.colors.button.primary.B * 1.1)
+		)
 	end
 	
 	-- Формируем текст кнопки
@@ -160,21 +143,25 @@ function AbilityButton:render()
 			end
 		end,
 	}, {
-		-- Скругленные углы
+		-- Современное скругление
 		UICorner = Roact.createElement("UICorner", {
-			CornerRadius = UDim.new(0, 12),
+			CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.button),
 		}),
 		
-		-- Градиент (опционально для активных способностей)
+		-- Современный градиент (для активных способностей)
 		UIGradient = isActive and Roact.createElement("UIGradient", {
 			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 170, 255)),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 140, 200)),
+				ColorSequenceKeypoint.new(0, ShopConfig.design.colors.button.success),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(
+					math.max(0, ShopConfig.design.colors.button.success.R * 255 - 30) / 255,
+					math.max(0, ShopConfig.design.colors.button.success.G * 255 - 30) / 255,
+					math.max(0, ShopConfig.design.colors.button.success.B * 255 - 30) / 255
+				)),
 			}),
 			Rotation = 45,
 		}) or nil,
 		
-		-- Основной текст способности
+		-- Современный основной текст способности
 		NameLabel = Roact.createElement("TextLabel", {
 			Size = UDim2.new(1, -20, 0, isMobile and 36 or 32),
 			Position = UDim2.new(0, 10, 0, isMobile and 10 or 8),
@@ -182,57 +169,57 @@ function AbilityButton:render()
 			Text = buttonText,
 			TextColor3 = textColor,
 			TextSize = isMobile and 20 or 18,
-			Font = Enum.Font.GothamSemibold,
+			Font = ShopConfig.design.colors.text.fonts.bold,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextYAlignment = Enum.TextYAlignment.Center,
 		}),
 		
-		-- Описание способности
+		-- Современное описание способности
 		DescriptionLabel = Roact.createElement("TextLabel", {
 			Size = UDim2.new(1, -20, 0, isMobile and 24 or 20),
 			Position = UDim2.new(0, 10, 0, isMobile and 42 or 35),
 			BackgroundTransparency = 1,
 			Text = ability.description,
-			TextColor3 = Color3.fromRGB(180, 180, 180),
+			TextColor3 = ShopConfig.design.colors.text.secondary,
 			TextSize = isMobile and 14 or 12,
-			Font = Enum.Font.Gotham,
+			Font = ShopConfig.design.colors.text.fonts.regular,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextYAlignment = Enum.TextYAlignment.Top,
 			TextWrapped = true,
 		}),
 		
-		-- Статус (цена, кулдаун, активность)
+		-- Современный статус (цена, кулдаун, активность)
 		StatusLabel = statusText ~= "" and Roact.createElement("TextLabel", {
 			Size = UDim2.new(1, -20, 0, isMobile and 20 or 16),
 			Position = UDim2.new(0, 10, 1, isMobile and -28 or -24),
 			BackgroundTransparency = 1,
 			Text = statusText,
-			TextColor3 = not props.isOwned and BUTTON_STYLE.ACCENT_GOLD or 
-						 props.isOnCooldown and BUTTON_STYLE.TEXT_COOLDOWN or
-						 isActive and BUTTON_STYLE.ACCENT_GREEN or
+			TextColor3 = not props.isOwned and ShopConfig.design.colors.text.accent or 
+						 props.isOnCooldown and ShopConfig.design.colors.text.disabled or
+						 isActive and ShopConfig.design.colors.status.success or
 						 textColor,
 			TextSize = isMobile and 16 or 14,
-			Font = Enum.Font.GothamBold,
+			Font = ShopConfig.design.colors.text.fonts.bold,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			TextYAlignment = Enum.TextYAlignment.Center,
 		}) or nil,
 		
-		-- Прогресс-бар кулдауна
+		-- Современный прогресс-бар кулдауна
 		CooldownBar = props.isOnCooldown and props.cooldownTimeLeft and Roact.createElement("Frame", {
 			Size = UDim2.new(1, 0, 0, 3),
 			Position = UDim2.new(0, 0, 1, -3),
-			BackgroundColor3 = BUTTON_STYLE.ACCENT_RED,
+			BackgroundColor3 = ShopConfig.design.colors.status.error,
 			BorderSizePixel = 0,
 		}, {
 			UICorner = Roact.createElement("UICorner", {
 				CornerRadius = UDim.new(0, 2),
 			}),
 			
-			-- Прогресс кулдауна
+			-- Современный прогресс кулдауна
 			Progress = Roact.createElement("Frame", {
 				Size = UDim2.new(math.max(0, props.cooldownTimeLeft / 8), 0, 1, 0), -- Примерный максимальный кулдаун 8 сек
 				Position = UDim2.new(0, 0, 0, 0),
-				BackgroundColor3 = BUTTON_STYLE.ACCENT_BLUE,
+				BackgroundColor3 = ShopConfig.design.colors.accent.primary,
 				BorderSizePixel = 0,
 			}, {
 				UICorner = Roact.createElement("UICorner", {
@@ -241,7 +228,7 @@ function AbilityButton:render()
 			}),
 		}) or nil,
 		
-		-- Эффект свечения для активных способностей
+		-- Современный эффект свечения для активных способностей
 		GlowEffect = isActive and Roact.createElement("Frame", {
 			Size = UDim2.new(1, 4, 1, 4),
 			Position = UDim2.new(0, -2, 0, -2),
@@ -250,12 +237,12 @@ function AbilityButton:render()
 			ZIndex = -1,
 		}, {
 			UICorner = Roact.createElement("UICorner", {
-				CornerRadius = UDim.new(0, 14),
+				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.button + 2),
 			}),
 			
 			UIStroke = Roact.createElement("UIStroke", {
-				Color = BUTTON_STYLE.ACCENT_BLUE,
-				Thickness = 2,
+				Color = ShopConfig.design.colors.accent.primary,
+				Thickness = ShopConfig.design.stroke.thickness,
 				Transparency = 0.3,
 			}),
 		}) or nil,
@@ -263,3 +250,4 @@ function AbilityButton:render()
 end
 
 return AbilityButton
+

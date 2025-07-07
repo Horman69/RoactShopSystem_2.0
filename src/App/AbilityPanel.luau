@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 -- Импортируем зависимости
 local ModuleLoader = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ModuleLoader"))
@@ -13,34 +14,57 @@ local Roact = ModuleLoader.require("Packages/roact")
 local AbilityService = ModuleLoader.require("services/AbilityService")
 local SimpleSoundService = ModuleLoader.require("services/SimpleSoundService")
 local PlatformService = ModuleLoader.require("services/SimplePlatformService")
+local AbilityConfig = ModuleLoader.require("shared/AbilityConfig") -- Добавляем импорт конфигурации
+local ShopConfig = ModuleLoader.require("shared/ShopConfig") -- Импорт для унифицированных стилей
 
 local AbilityPanel = Roact.Component:extend("AbilityPanel")
 
 function AbilityPanel:init()
-	self.abilityService = AbilityService.new()
-	self.soundService = SimpleSoundService.new()
-	self.platformService = PlatformService.new()
+	-- Безопасная инициализация сервисов
+	local success, error = pcall(function()
+		self.abilityService = AbilityService.new()
+		self.soundService = SimpleSoundService.new()
+		self.platformService = PlatformService.new()
+	end)
+	
+	if not success then
+		warn("AbilityPanel: Ошибка инициализации сервисов:", error)
+		-- Создаем заглушки для сервисов
+		self.abilityService = { 
+			getActiveEffects = function() return {} end,
+			isAbilityUnavailableForUI = function() return false end,
+			getUITimeLeft = function() return 0 end,
+			activateAbility = function() return {success = false, message = "Сервис недоступен"} end
+		}
+		self.soundService = { playSound = function() end }
+		self.platformService = { isMobile = function() return false end }
+	end
 	
 	-- Рефы для анимации кнопок
 	self.buttonRefs = {}
 	
+	-- Рефы для плавной анимации прогресс-баров
+	self.progressRefs = {}
+	
 	-- Отслеживание предыдущих состояний кулдаунов для звука окончания
 	self.previousCooldowns = {}
+	
+	-- Для плавной анимации прогресс-баров
+	self.isUpdating = false
+	self.lastUpdateTime = 0
 	
 	self.state = {
 		abilities = {},
 		cooldowns = {},
 		activeEffects = {},
 		cooldownTimes = {},
+		effectTimes = {}, -- Добавляем отслеживание времени эффектов
 		hoveredAbility = nil,
 	}
 	
-	-- Обновляем состояние каждые 0.1 секунды для плавности
-	spawn(function()
-		while true do
-			wait(0.1)
-			self:updateState()
-		end
+	-- Плавное обновление состояния через RunService.Heartbeat (более частое и плавное)
+	self.heartbeatConnection = RunService.Heartbeat:Connect(function()
+		self:smoothUpdateState()
 	end)
 	
 	-- Загружаем способности мгновенно
@@ -79,12 +103,56 @@ function AbilityPanel:loadAbilities()
 	self:setState({ abilities = abilities })
 end
 
+-- Плавное обновление состояния (оптимизированное)
+function AbilityPanel:smoothUpdateState()
+	local currentTime = tick()
+	
+	-- Обновляем только если прошло минимум 0.05 секунды (20 FPS для UI)
+	-- Это баланс между плавностью и производительностью
+	if currentTime - self.lastUpdateTime < 0.05 then
+		return
+	end
+	
+	local player = Players.LocalPlayer
+	if not player then return end
+	
+	-- Проверяем, есть ли активные эффекты или кулдауны
+	local activeEffects = self.abilityService:getActiveEffects(player)
+	local hasActiveState = false
+	
+	-- Быстрая проверка - есть ли что обновлять
+	for abilityId, _ in pairs(activeEffects) do
+		hasActiveState = true
+		break
+	end
+	
+	-- Проверяем кулдауны только если нет активных эффектов
+	if not hasActiveState then
+		local baseAbilities = {"speed_boost", "shield_aura", "jump_boost"}
+		for _, abilityId in ipairs(baseAbilities) do
+			if self.abilityService:isAbilityUnavailableForUI(player, abilityId) then
+				hasActiveState = true
+				break
+			end
+		end
+	end
+	
+	-- Если нет активных состояний, обновляем реже (каждые 0.2 сек)
+	if not hasActiveState and currentTime - self.lastUpdateTime < 0.2 then
+		return
+	end
+	
+	self.lastUpdateTime = currentTime
+	self:updateState()
+end
+
 function AbilityPanel:updateState()
 	local player = Players.LocalPlayer
 	if not player then return end
 	
 	local cooldowns = {}
 	local cooldownTimes = {}
+	local effectTimes = {}
 	local activeEffects = self.abilityService:getActiveEffects(player)
 	
 	-- Проверяем кулдауны для всех базовых способностей (даже не купленных)
@@ -95,6 +163,17 @@ function AbilityPanel:updateState()
 		local wasOnCooldown = self.previousCooldowns[abilityId] or false
 		
 		cooldowns[abilityId] = isOnCooldown
+		
+		-- Получаем время эффекта напрямую из AbilityService
+		if activeEffects[abilityId] then
+			local config = self:getAbilityConfig(abilityId)
+			if config then
+				local effect = activeEffects[abilityId]
+				local elapsed = tick() - effect.startTime
+				local remaining = math.max(0, config.baseDuration - elapsed)
+				effectTimes[abilityId] = remaining
+			end
+		end
 		
 		-- Проверяем, закончился ли кулдаун (был на кулдауне, теперь нет)
 		if wasOnCooldown and not isOnCooldown then
@@ -114,6 +193,17 @@ function AbilityPanel:updateState()
 		
 		cooldowns[ability.id] = isOnCooldown
 		
+		-- Получаем время эффекта
+		if activeEffects[ability.id] then
+			local config = self:getAbilityConfig(ability.id)
+			if config then
+				local effect = activeEffects[ability.id]
+				local elapsed = tick() - effect.startTime
+				local remaining = math.max(0, config.baseDuration - elapsed)
+				effectTimes[ability.id] = remaining
+			end
+		end
+		
 		-- Проверяем окончание кулдауна
 		if wasOnCooldown and not isOnCooldown then
 			print("AbilityPanel: Кулдаун способности", ability.id, "закончился!")
@@ -131,6 +221,7 @@ function AbilityPanel:updateState()
 		cooldowns = cooldowns,
 		activeEffects = activeEffects,
 		cooldownTimes = cooldownTimes,
+		effectTimes = effectTimes,
 	})
 end
 
@@ -237,6 +328,95 @@ function AbilityPanel:animateSuccess(button: GuiObject)
 	end)
 	
 	tween1:Play()
+end
+
+-- Создает прогресс-бар для отображения времени эффекта или кулдауна
+function AbilityPanel:createProgressBar(abilityId: string, isEffectBar: boolean)
+	local isActive = self.state.activeEffects[abilityId] ~= nil
+	local isOnCooldown = self.state.cooldowns[abilityId] or false
+	local effectTime = self.state.effectTimes[abilityId] or 0
+	local cooldownTime = self.state.cooldownTimes[abilityId] or 0
+	
+	-- Определяем, показывать ли прогресс-бар
+	local shouldShow = false
+	local progress = 0
+	local barColor = Color3.fromRGB(76, 175, 80) -- Зеленый по умолчанию
+	
+	if isEffectBar and isActive and effectTime > 0 then
+		-- Прогресс-бар эффекта (зеленый) - показываем когда способность активна
+		local config = self:getAbilityConfig(abilityId)
+		if config then
+			progress = math.max(0, math.min(1, effectTime / config.baseDuration))
+			barColor = Color3.fromRGB(76, 175, 80) -- Зеленый
+			shouldShow = true
+		end
+	elseif not isEffectBar and not isActive and isOnCooldown and cooldownTime > 0 then
+		-- Прогресс-бар кулдауна (оранжевый) - показываем когда способность НЕ активна, но на кулдауне
+		local config = self:getAbilityConfig(abilityId)
+		if config then
+			progress = math.max(0, math.min(1, cooldownTime / config.cooldown))
+			barColor = Color3.fromRGB(255, 152, 0) -- Оранжевый
+			shouldShow = true
+		end
+	end
+	
+	if not shouldShow then
+		return nil
+	end
+	
+	-- Создаем уникальный ref для этого прогресс-бара
+	local refKey = abilityId .. (isEffectBar and "_effect" or "_cooldown")
+	if not self.progressRefs[refKey] then
+		self.progressRefs[refKey] = Roact.createRef()
+	end
+	
+	return Roact.createElement("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(0.9, 0, 0.12, 0),
+		Position = UDim2.new(0.05, 0, 0.82, 0),
+		ZIndex = 6,
+	}, {
+		-- Фон прогресс-бара
+		Background = Roact.createElement("Frame", {
+			BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+			BackgroundTransparency = 0.3,
+			BorderSizePixel = 0,
+			Size = UDim2.new(1, 0, 1, 0),
+			Position = UDim2.new(0, 0, 0, 0),
+		}, {
+			Corner = Roact.createElement("UICorner", {
+				CornerRadius = UDim.new(0, 2),
+			}),
+		}),
+		
+		-- Заливка прогресса с плавной анимацией
+		Fill = Roact.createElement("Frame", {
+			[Roact.Ref] = self.progressRefs[refKey],
+			BackgroundColor3 = barColor,
+			BackgroundTransparency = 0.2,
+			BorderSizePixel = 0,
+			Size = UDim2.new(progress, 0, 1, 0),
+			Position = UDim2.new(0, 0, 0, 0),
+			ZIndex = 7,
+			[Roact.Event.Changed] = function(property)
+				-- Плавная анимация изменения размера
+				if property == "Size" then
+					local fillFrame = self.progressRefs[refKey]:getValue()
+					if fillFrame then
+						local tween = TweenService:Create(fillFrame,
+							TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+							{Size = UDim2.new(progress, 0, 1, 0)}
+						)
+						tween:Play()
+					end
+				end
+			end,
+		}, {
+			Corner = Roact.createElement("UICorner", {
+				CornerRadius = UDim.new(0, 2),
+			}),
+		}),
+	})
 end
 
 -- Упрощенная версия createProButton
@@ -347,57 +527,40 @@ function AbilityPanel:createSimpleButton(ability, index: number)
 			Transparency = 0.3,
 		}),
 		
-		-- ИКОНКА СПОСОБНОСТИ (ЦЕНТР) - цвет зависит от состояния
+		-- ИКОНКА СПОСОБНОСТИ (ИДЕАЛЬНОЕ ЦЕНТРИРОВАНИЕ)
 		Icon = Roact.createElement("TextLabel", {
 			BackgroundTransparency = 1,
-			Size = UDim2.new(0.6, 0, 0.6, 0),
-			Position = UDim2.new(0.2, 0, 0.1, 0),
+			Size = UDim2.new(0.7, 0, 0.7, 0), -- Увеличиваем размер для лучшей видимости
+			Position = UDim2.new(0.15, 0, 0.08, 0), -- Корректируем позицию для центрирования
+			AnchorPoint = Vector2.new(0, 0), -- Якорь в левом верхнем углу
 			Text = config.icon,
 			TextColor3 = isOnCooldown and Color3.fromRGB(150, 150, 150) or Color3.fromRGB(255, 255, 255),
 			TextTransparency = isOnCooldown and 0.5 or 0,
 			TextScaled = true,
+			TextXAlignment = Enum.TextXAlignment.Center, -- Горизонтальное центрирование
+			TextYAlignment = Enum.TextYAlignment.Center, -- Вертикальное центрирование
 			Font = Enum.Font.GothamBold,
 		}),
 		
 		-- ГОРЯЧАЯ КЛАВИША (ПРАВЫЙ ВЕРХНИЙ УГОЛ)
 		Hotkey = Roact.createElement("TextLabel", {
 			BackgroundTransparency = 1,
-			Size = UDim2.new(0.3, 0, 0.25, 0),
-			Position = UDim2.new(0.7, 0, 0.05, 0),
+			Size = UDim2.new(0.25, 0, 0.22, 0), -- Слегка уменьшаем размер
+			Position = UDim2.new(0.72, 0, 0.03, 0), -- Сдвигаем чуть правее и выше
 			Text = hotkey,
 			TextColor3 = isOnCooldown and Color3.fromRGB(150, 150, 150) or Color3.fromRGB(255, 255, 255),
 			TextTransparency = isOnCooldown and 0.5 or 0,
-			TextSize = 12,
+			TextSize = 11, -- Слегка уменьшаем размер шрифта
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Center,
 			Font = Enum.Font.GothamBold,
 		}),
 		
-		-- ТАЙМЕР КУЛДАУНА (ЦЕНТР, ПОВЕРХ ИКОНКИ)
-		Timer = isOnCooldown and Roact.createElement("TextLabel", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(0.8, 0, 0.4, 0),
-			Position = UDim2.new(0.1, 0, 0.4, 0),
-			Text = tostring(math.ceil(cooldownTime)),
-			TextColor3 = Color3.fromRGB(255, 100, 100), -- Красный цвет для кулдауна
-			TextSize = 16,
-			Font = Enum.Font.GothamBold,
-			TextStrokeTransparency = 0,
-			TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
-			ZIndex = 5,
-		}) or nil,
+		-- ПРОГРЕСС-БАР ЭФФЕКТА (показывается когда способность активна)
+		EffectProgress = self:createProgressBar(ability.id, true),
 		
-		-- ИНДИКАТОР АКТИВНОСТИ (если способность активна)
-		ActiveIndicator = isActive and Roact.createElement("TextLabel", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(0.4, 0, 0.3, 0),
-			Position = UDim2.new(0.3, 0, 0.65, 0),
-			Text = "ON",
-			TextColor3 = Color3.fromRGB(0, 255, 100), -- Зеленый цвет для активности
-			TextSize = 10,
-			Font = Enum.Font.GothamBold,
-			TextStrokeTransparency = 0,
-			TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
-			ZIndex = 5,
-		}) or nil,
+		-- ПРОГРЕСС-БАР КУЛДАУНА (показывается когда способность на кулдауне)
+		CooldownProgress = self:createProgressBar(ability.id, false),
 	})
 end
 
@@ -480,26 +643,31 @@ function AbilityPanel:createEmptySlot(slot, index: number)
 			Transparency = 0.5,
 		}),
 		
-		-- Иконка способности (центр)
+		-- ИКОНКА СПОСОБНОСТИ (ИДЕАЛЬНОЕ ЦЕНТРИРОВАНИЕ)
 		Icon = Roact.createElement("TextLabel", {
 			Text = slot.icon,
 			TextColor3 = Color3.fromRGB(150, 150, 150),
 			Font = Enum.Font.GothamBold,
 			BackgroundTransparency = 1,
-			Size = UDim2.new(0.6, 0, 0.6, 0),
-			Position = UDim2.new(0.2, 0, 0.1, 0),
+			Size = UDim2.new(0.7, 0, 0.7, 0), -- Увеличиваем размер для лучшей видимости
+			Position = UDim2.new(0.15, 0, 0.08, 0), -- Корректируем позицию для центрирования
+			AnchorPoint = Vector2.new(0, 0), -- Якорь в левом верхнем углу
 			TextScaled = true,
+			TextXAlignment = Enum.TextXAlignment.Center, -- Горизонтальное центрирование
+			TextYAlignment = Enum.TextYAlignment.Center, -- Вертикальное центрирование
 		}),
 		
-		-- Горячая клавиша (правый верхний угол)
+		-- ГОРЯЧАЯ КЛАВИША (ПРАВЫЙ ВЕРХНИЙ УГОЛ)
 		Hotkey = Roact.createElement("TextLabel", {
 			Text = hotkey,
 			TextColor3 = Color3.fromRGB(150, 150, 150),
 			Font = Enum.Font.GothamBold,
 			BackgroundTransparency = 1,
-			Size = UDim2.new(0.3, 0, 0.25, 0),
-			Position = UDim2.new(0.7, 0, 0.05, 0),
-			TextSize = 12,
+			Size = UDim2.new(0.25, 0, 0.22, 0), -- Слегка уменьшаем размер
+			Position = UDim2.new(0.72, 0, 0.03, 0), -- Сдвигаем чуть правее и выше
+			TextSize = 11, -- Слегка уменьшаем размер шрифта
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Center,
 		}),
 		
 		-- Замок (если не на кулдауне)
@@ -511,20 +679,6 @@ function AbilityPanel:createEmptySlot(slot, index: number)
 			Size = UDim2.new(0.3, 0, 0.3, 0),
 			Position = UDim2.new(0.35, 0, 0.6, 0),
 			TextScaled = true,
-		}) or nil,
-		
-		-- Таймер кулдауна (центр)
-		Timer = isOnCooldown and Roact.createElement("TextLabel", {
-			Text = tostring(math.ceil(cooldownTime)),
-			TextColor3 = Color3.fromRGB(255, 255, 255),
-			Font = Enum.Font.GothamBold,
-			BackgroundTransparency = 1,
-			Size = UDim2.new(0.8, 0, 0.4, 0),
-			Position = UDim2.new(0.1, 0, 0.4, 0),
-			TextSize = 16,
-			TextStrokeTransparency = 0,
-			TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
-			ZIndex = 5,
 		}) or nil,
 	})
 end
@@ -622,11 +776,11 @@ function AbilityPanel:render()
 				}),
 			}),
 			
-			-- ТОНКАЯ РАМКА (ПРОФЕССИОНАЛЬНО)
+			-- СТИЛЬНАЯ РАМКА КАК У МАГАЗИНА (ИЗ SHOPCONFIG)
 			Border = Roact.createElement("UIStroke", {
-				Color = Color3.fromRGB(60, 60, 60),
-				Thickness = 1,
-				Transparency = 0.5,
+				Color = ShopConfig.design.colors.accent.primary, -- Синий акцент из ShopConfig
+				Thickness = ShopConfig.design.stroke.thickness, -- Унифицированная толщина
+				Transparency = 0.3, -- Менее прозрачная для лучшей видимости
 			}),
 			
 			-- КОНТЕЙНЕР КНОПОК
@@ -637,6 +791,25 @@ function AbilityPanel:render()
 			}, abilityButtons),
 		}),
 	})
+end
+
+-- Получает конфигурацию способности из AbilityConfig
+function AbilityPanel:getAbilityConfig(abilityId: string)
+	local allAbilities = AbilityConfig.getAllAbilities()
+	for _, config in ipairs(allAbilities) do
+		if config.id == abilityId then
+			return config
+		end
+	end
+	return nil
+end
+
+function AbilityPanel:willUnmount()
+	-- Отключаем соединение Heartbeat при размонтировании
+	if self.heartbeatConnection then
+		self.heartbeatConnection:Disconnect()
+		self.heartbeatConnection = nil
+	end
 end
 
 return AbilityPanel

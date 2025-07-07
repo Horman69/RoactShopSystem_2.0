@@ -25,6 +25,9 @@ local WalletComponent = ModuleLoader.require("App/WalletComponent")
 local ShopComponent = ModuleLoader.require("App/ShopComponent")
 local AbilityPanel = ModuleLoader.require("App/AbilityPanel")
 
+-- Импортируем ShopConfig для глобальных стилей
+local ShopConfig = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ShopConfig"))
+
 -- Типы
 local Types = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("Types"))
 type CurrencyState = Types.CurrencyState
@@ -315,51 +318,102 @@ function AppController:render()
 			}),
 		}),
 		
-		-- 🎮 ПРОФЕССИОНАЛЬНАЯ КНОПКА МАГАЗИНА
+		-- 🎮 ПРОФЕССИОНАЛЬНАЯ КНОПКА МАГАЗИНА (В СТИЛЕ ПРОЕКТА)
 		ShopButton = Roact.createElement("TextButton", {
 			Text = self.state.showShop and "ЗАКРЫТЬ" or "МАГАЗИН",
-			Size = UDim2.new(0, 140, 0, 50), -- Немного уменьшили высоту для элегантности
+			Size = UDim2.new(0, 150, 0, 54), -- Стандартная высота как у магазина
 			Position = self.platformService:isMobile() and 
-				UDim2.new(0, 20, 0.5, -25) or -- Мобильная: левый край экрана
-				UDim2.new(1, -160, 0.5, -25), -- Десктопная: правый край экрана
-			-- УПРОЩЁННАЯ СХЕМА ЦВЕТОВ: только два состояния
+				UDim2.new(0, 20, 0.5, -27) or -- Мобильная: левый край экрана
+				UDim2.new(1, -170, 0.5, -27), -- Десктопная: правый край экрана
+			
+			-- ЦВЕТА ИЗ SHOPCONFIG
 			BackgroundColor3 = self.state.showShop and 
-				Color3.fromRGB(239, 68, 68) or -- Красный для "закрыть" (более современный)
-				Color3.fromRGB(59, 130, 246), -- Синий для "магазин" (более современный)
+				ShopConfig.design.colors.button.close or -- Красный для "закрыть"
+				ShopConfig.design.colors.button.buy, -- Зеленый для "магазин"
 			BackgroundTransparency = 0,
-			TextSize = 16, -- Чуть меньше для элегантности
-			Font = Enum.Font.GothamBold, -- Менее агрессивный шрифт
-			TextColor3 = Color3.fromRGB(255, 255, 255),
+			
+			-- ТИПОГРАФИКА ИЗ SHOPCONFIG (КАСТОМНЫЙ РАЗМЕР ШРИФТА)
+			TextSize = self.platformService:isMobile() and 26 or 30, -- На 2px меньше чем header (было 28/32)
+			Font = Enum.Font.GothamBold,
+			TextColor3 = ShopConfig.design.colors.text.primary,
+			
 			AutoButtonColor = false,
-			Modal = true, -- ДОБАВЛЕНО: отключаем стандартные звуки Roblox
+			Modal = true,
 			BorderSizePixel = 0,
-			[Roact.Event.MouseButton1Down] = function()
-				-- Убираем отдельное состояние нажатия
-			end,
+			
 			[Roact.Event.MouseButton1Up] = function()
 				self:toggleShop()
 			end,
-			-- СОВРЕМЕННЫЕ HOVER ЭФФЕКТЫ
-			[Roact.Event.MouseEnter] = function(button)
-				if self.state.showShop then
-					-- Светлее красный при наведении
-					button.BackgroundColor3 = Color3.fromRGB(248, 113, 113)
-				else
-					-- Светлее синий при наведении
-					button.BackgroundColor3 = Color3.fromRGB(96, 165, 250)
-				end
+			
+			-- АНИМАЦИЯ НАЖАТИЯ
+			[Roact.Event.MouseButton1Down] = function(button)
+				-- Быстрая анимация "вжатия"
+				local pressTween = TweenService:Create(button,
+					TweenInfo.new(0.1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+					{
+						Size = UDim2.new(0, 145, 0, 52) -- Слегка уменьшаем
+					}
+				)
+				pressTween:Play()
 			end,
+			
+			-- АНИМИРОВАННЫЕ HOVER ЭФФЕКТЫ
+			[Roact.Event.MouseEnter] = function(button)
+				local hoverColor = self.state.showShop and 
+					ShopConfig.design.colors.button.closeHover or 
+					ShopConfig.design.colors.button.buyHover
+				
+				-- Плавная анимация цвета и размера
+				local colorTween = TweenService:Create(button,
+					TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+					{
+						BackgroundColor3 = hoverColor,
+						Size = UDim2.new(0, 155, 0, 56) -- Небольшое увеличение
+					}
+				)
+				colorTween:Play()
+			end,
+			
 			[Roact.Event.MouseLeave] = function(button)
-				-- Возврат к базовым цветам
-				if self.state.showShop then
-					button.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-				else
-					button.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-				end
+				local baseColor = self.state.showShop and 
+					ShopConfig.design.colors.button.close or 
+					ShopConfig.design.colors.button.buy
+				
+				-- Плавная анимация обратно к исходному состоянию
+				local colorTween = TweenService:Create(button,
+					TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+					{
+						BackgroundColor3 = baseColor,
+						Size = UDim2.new(0, 150, 0, 54) -- Возврат к исходному размеру
+					}
+				)
+				colorTween:Play()
 			end,
 		}, {
+			-- СКРУГЛЕНИЕ ИЗ SHOPCONFIG
 			UICorner = Roact.createElement("UICorner", {
-				CornerRadius = UDim.new(0, 12), -- Современное скругление
+				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.medium),
+			}),
+			
+			-- ТОНКАЯ ЧЕРНАЯ ОБВОДКА ДЛЯ КОНТРАСТА
+			UIStroke = Roact.createElement("UIStroke", {
+				Color = Color3.fromRGB(0, 0, 0), -- Черная обводка
+				Thickness = 1, -- Тонкая обводка
+				Transparency = 0.3, -- Слегка прозрачная для мягкости
+			}),
+			
+			-- ТЕНЬ КАК У ДРУГИХ ЭЛЕМЕНТОВ МАГАЗИНА
+			ButtonShadow = Roact.createElement("Frame", {
+				Size = UDim2.new(1, 4, 1, 6),
+				Position = UDim2.new(0, 2, 0, 3),
+				BackgroundColor3 = ShopConfig.design.shadow.color,
+				BackgroundTransparency = 0.85,
+				BorderSizePixel = 0,
+				ZIndex = -1,
+			}, {
+				UICorner = Roact.createElement("UICorner", {
+					CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.medium),
+				}),
 			}),
 		}),
 		
@@ -373,16 +427,17 @@ function AppController:render()
 			Name = "ShopGui",
 			ResetOnSpawn = false,
 			Enabled = self.state.showShop, -- Используем Enabled вместо условного рендера
-		}, {		-- 🛒 АДАПТИВНЫЙ КОНТЕЙНЕР МАГАЗИНА С РОВНЫМИ ОТСТУПАМИ
-		ShopFrame = Roact.createElement("Frame", {
-			[Roact.Ref] = self.shopRef,
-			Size = self.platformService:isMobile() and 
-				UDim2.new(0.9, 0, 0.8, 0) or -- Мобильная: 90% ширины, 80% высоты экрана
-				UDim2.new(0, 480, 0, 520), -- Десктопная: 480px ширина, 520px высота (уменьшили для отступа снизу)
-			Position = self.platformService:isMobile() and 
-				UDim2.new(-0.9, 0, 0.1, 0) or -- Мобильная: начальная позиция за экраном, 10% отступ сверху
-				UDim2.new(0, -480, 0, 80), -- Десктопная: начальная позиция за экраном, 80px отступ сверху
-			BackgroundTransparency = 1,
+		}, {
+			-- 🛒 АДАПТИВНЫЙ КОНТЕЙНЕР МАГАЗИНА С РОВНЫМИ ОТСТУПАМИ
+			ShopFrame = Roact.createElement("Frame", {
+				[Roact.Ref] = self.shopRef,
+				Size = self.platformService:isMobile() and 
+					UDim2.new(0.9, 0, 0.8, 0) or -- Мобильная: 90% ширины, 80% высоты экрана
+					UDim2.new(0, 480, 0, 520), -- Десктопная: 480px ширина, 520px высота (уменьшили для отступа снизу)
+				Position = self.platformService:isMobile() and 
+					UDim2.new(-0.9, 0, 0.1, 0) or -- Мобильная: начальная позиция за экраном, 10% отступ сверху
+					UDim2.new(0, -480, 0, 80), -- Десктопная: начальная позиция за экраном, 80px отступ сверху
+				BackgroundTransparency = 1,
 			}, {
 				Shop = Roact.createElement(ShopComponent, {
 					shopService = self.shopService,
@@ -403,3 +458,4 @@ function AppController:render()
 end
 
 return AppController
+

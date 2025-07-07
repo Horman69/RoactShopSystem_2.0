@@ -7,14 +7,16 @@ local Players = game:GetService("Players")
 
 -- Ждем загрузки игрока
 local player = Players.LocalPlayer
-repeat wait() until player.Character
+repeat
+	wait()
+until player.Character
 
 print("🚀 MainLauncher: Запуск главного интерфейса...")
 
 -- Очищаем старые UI
 local function cleanupOldUI()
 	local playerGui = player:WaitForChild("PlayerGui")
-	local oldUIs = {"MainApp", "TestScreenGui", "ShopApp", "AbilityUI", "MainInterfaceUI"}
+	local oldUIs = { "MainApp", "TestScreenGui", "ShopApp", "AbilityUI", "MainInterfaceUI" }
 	for _, uiName in ipairs(oldUIs) do
 		local oldUI = playerGui:FindFirstChild(uiName)
 		if oldUI then

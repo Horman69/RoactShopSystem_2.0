@@ -33,6 +33,7 @@ function AbilityCard:init()
 	self.platformService = PlatformService.new()
 	self.buttonRef = Roact.createRef()
 	self.strokeRef = Roact.createRef()
+	self.cardRef = Roact.createRef()
 	
 	-- Состояние hover
 	self:setState({
@@ -40,36 +41,83 @@ function AbilityCard:init()
 	})
 end
 
--- Изменение цвета рамки при hover
+-- Современные эффекты при наведении на карточку способности
 function AbilityCard:onCardHover(isHovering: boolean)
 	if self.platformService:isMobile() then return end
 	
 	self:setState({ isHovered = isHovering })
 	
+	-- Эффект для обводки
 	if self.strokeRef.current then
-		local colors = ShopConfig.design.colors
-		local animations = ShopConfig.design.animations
-		local hoverColor = isHovering and colors.button.buy or Color3.fromRGB(99, 102, 241)
-		
-		local tween = TweenService:Create(self.strokeRef.current,
-			TweenInfo.new(animations.slow, animations.easing, animations.direction),
-			{ Color = hoverColor }
+		local targetTransparency = isHovering and 0.1 or 0.4
+		local strokeTween = TweenService:Create(self.strokeRef.current,
+			TweenInfo.new(ShopConfig.design.animations.duration, ShopConfig.design.animations.easing),
+			{ Transparency = targetTransparency }
 		)
-		tween:Play()
+		strokeTween:Play()
+	end
+	
+	-- Плавный hover-эффект масштабирования карточки
+	if self.cardRef.current then
+		local targetScale = isHovering and 1.02 or 1.0
+		local scaleTween = TweenService:Create(self.cardRef.current,
+			TweenInfo.new(ShopConfig.design.animations.duration, ShopConfig.design.animations.easing),
+			{ Size = UDim2.new(targetScale, 0, targetScale, 0) }
+		)
+		scaleTween:Play()
 	end
 end
 
--- Получить состояние кнопки
+-- Современные эффекты при взаимодействии с кнопкой
+function AbilityCard:onButtonHover(isHovering: boolean)
+	local button = self.buttonRef.current
+	if button then
+		local targetScale = isHovering and 1.05 or 1.0
+		local targetTransparency = isHovering and 0.1 or 0.0
+		
+		local scaleTween = TweenService:Create(button,
+			TweenInfo.new(ShopConfig.design.animations.duration, ShopConfig.design.animations.easing),
+			{ 
+				Size = UDim2.new(0, button.Size.X.Offset * targetScale, 0, button.Size.Y.Offset * targetScale),
+				BackgroundTransparency = targetTransparency
+			}
+		)
+		scaleTween:Play()
+	end
+end
+
+function AbilityCard:onButtonPress()
+	local button = self.buttonRef.current
+	if button then
+		-- Быстрый эффект нажатия
+		local pressTween = TweenService:Create(button,
+			TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+			{ Size = UDim2.new(0, button.Size.X.Offset * 0.95, 0, button.Size.Y.Offset * 0.95) }
+		)
+		pressTween:Play()
+		
+		-- Возвращение к нормальному размеру
+		pressTween.Completed:Connect(function()
+			local releaseTween = TweenService:Create(button,
+				TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+				{ Size = UDim2.new(0, button.Size.X.Offset / 0.95, 0, button.Size.Y.Offset / 0.95) }
+			)
+			releaseTween:Play()
+		end)
+	end
+end
+
+-- Получить состояние кнопки (унифицированное)
 function AbilityCard:getButtonState(): (string, Color3, boolean)
 	local isOwned = self.props.isOwned or false
 	local canAfford = self.props.canAfford or true
 	
 	if isOwned then
-		return "КУПЛЕНО", Color3.fromRGB(107, 114, 128), false -- Серый, неактивна
+		return ShopConfig.shop.buttons.owned, ShopConfig.design.colors.button.owned, false
 	elseif not canAfford then
-		return "НЕ ХВАТАЕТ", Color3.fromRGB(239, 68, 68), false -- Красный, неактивна
+		return ShopConfig.shop.buttons.cantAfford, ShopConfig.design.colors.button.cantAfford, false
 	else
-		return "КУПИТЬ", Color3.fromRGB(34, 197, 94), true -- Зеленый, активна
+		return ShopConfig.shop.buttons.buy, ShopConfig.design.colors.button.buy, true
 	end
 end
 
@@ -95,11 +143,12 @@ function AbilityCard:render()
 	
 	return Roact.createElement("Frame", {
 		Size = UDim2.new(1, 0, 0, cardHeight),
-		BackgroundColor3 = colors.cardBackground,
-		BackgroundTransparency = 0,  -- Полностью непрозрачный темный фон
+		BackgroundColor3 = ShopConfig.design.colors.background.card,
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
+		[Roact.Ref] = self.cardRef,
 		
-		-- События наведения
+		-- Современные события наведения
 		[Roact.Event.MouseEnter] = function()
 			self:onCardHover(true)
 		end,
@@ -107,39 +156,43 @@ function AbilityCard:render()
 			self:onCardHover(false)
 		end,
 	}, {
-		-- Скругление
+		-- Современное скругление карточки
 		UICorner = Roact.createElement("UICorner", {
-			CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.large), -- Большее скругление
+			CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.card),
 		}),
 		
 		-- Современный градиент фона для способностей
 		UIGradient = Roact.createElement("UIGradient", {
 			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, colors.cardBackground),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 25, 45)), -- Темнее снизу
+				ColorSequenceKeypoint.new(0, ShopConfig.design.colors.background.card),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(
+					math.max(0, ShopConfig.design.colors.background.card.R * 255 - 15) / 255,
+					math.max(0, ShopConfig.design.colors.background.card.G * 255 - 15) / 255,
+					math.max(0, ShopConfig.design.colors.background.card.B * 255 - 15) / 255
+				)),
 			}),
 			Rotation = 180,
 		}),
 		
-		-- Светящаяся обводка способности
+		-- Современная светящаяся обводка способности
 		UIStroke = Roact.createElement("UIStroke", {
-			Color = Color3.fromRGB(99, 102, 241), -- Фиолетовый для способностей
-			Thickness = 1,
+			Color = ShopConfig.design.colors.accent.primary,
+			Thickness = ShopConfig.design.stroke.thickness,
 			Transparency = 0.4,
 			[Roact.Ref] = self.strokeRef,
 		}),
 		
-		-- Тень для глубины
+		-- Современная тень для глубины
 		Shadow = Roact.createElement("Frame", {
-			Size = UDim2.new(1, 6, 1, 8),
-			Position = UDim2.new(0, 3, 0, 4),
-			BackgroundColor3 = ShopConfig.design.colors.shadow,
-			BackgroundTransparency = 0.85,
+			Size = UDim2.new(1, ShopConfig.design.shadow.offset.x * 2, 1, ShopConfig.design.shadow.offset.y * 2),
+			Position = UDim2.new(0, ShopConfig.design.shadow.offset.x, 0, ShopConfig.design.shadow.offset.y),
+			BackgroundColor3 = ShopConfig.design.shadow.color,
+			BackgroundTransparency = ShopConfig.design.shadow.transparency,
 			BorderSizePixel = 0,
 			ZIndex = -1,
 		}, {
 			UICorner = Roact.createElement("UICorner", {
-				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.large),
+				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.card),
 			}),
 		}),
 		
@@ -149,42 +202,42 @@ function AbilityCard:render()
 			Position = UDim2.new(0, config.spacing.padding.medium, 0, config.spacing.gaps.small),
 			BackgroundTransparency = 1,
 		}, {
-			-- Название способности (центрированное)
+			-- Название способности (современная типографика)
 			AbilityName = Roact.createElement("TextLabel", {
 				Text = ability.name,
 				Size = UDim2.new(1, 0, 0, titleSize + 2),
 				Position = UDim2.new(0, 0, 0, 8),
 				BackgroundTransparency = 1,
-				TextColor3 = ShopConfig.design.colors.text.primary, -- Темный текст на светлом фоне
+				TextColor3 = ShopConfig.design.colors.text.primary,
 				TextSize = titleSize,
-				Font = Enum.Font.GothamBold,
+				Font = ShopConfig.design.colors.text.fonts.bold,
 				TextXAlignment = Enum.TextXAlignment.Center,
 				TextYAlignment = Enum.TextYAlignment.Center,
 				TextTruncate = Enum.TextTruncate.AtEnd,
 			}),
 			
-			-- Цена способности (центрированная)
+			-- Цена способности (с золотым акцентом)
 			AbilityPrice = Roact.createElement("TextLabel", {
 				Text = "💰 " .. ability.price .. " монет",
 				Size = UDim2.new(1, 0, 0, priceSize + 2),
 				Position = UDim2.new(0, 0, 0, titleSize + 10),
 				BackgroundTransparency = 1,
-				TextColor3 = ShopConfig.design.colors.text.accent, -- Синий акцентный цвет
+				TextColor3 = ShopConfig.design.colors.text.accent,
 				TextSize = priceSize,
-				Font = Enum.Font.GothamBold,
+				Font = ShopConfig.design.colors.text.fonts.bold,
 				TextXAlignment = Enum.TextXAlignment.Center,
 				TextYAlignment = Enum.TextYAlignment.Center,
 			}),
 			
-			-- Описание способности (центрированное)
+			-- Описание способности (современная типографика)
 			AbilityDescription = Roact.createElement("TextLabel", {
 				Text = ability.description,
 				Size = UDim2.new(1, 0, 0, descSize + 6),
 				Position = UDim2.new(0, 0, 0, titleSize + priceSize + 15),
 				BackgroundTransparency = 1,
-				TextColor3 = ShopConfig.design.colors.text.secondary, -- Серый вторичный текст
+				TextColor3 = ShopConfig.design.colors.text.secondary,
 				TextSize = descSize,
-				Font = Enum.Font.Gotham,
+				Font = ShopConfig.design.colors.text.fonts.regular,
 				TextXAlignment = Enum.TextXAlignment.Center,
 				TextYAlignment = Enum.TextYAlignment.Center,
 				TextWrapped = true,
@@ -192,7 +245,7 @@ function AbilityCard:render()
 			}),
 		}),
 		
-		-- Кнопка покупки (простая с hover-анимацией)
+		-- Современная кнопка покупки с эффектами
 		PurchaseButton = Roact.createElement("TextButton", {
 			Text = buttonText,
 			Size = buttonSize,
@@ -200,49 +253,70 @@ function AbilityCard:render()
 			BackgroundColor3 = buttonColor,
 			BackgroundTransparency = buttonEnabled and 0 or 0.3,
 			BorderSizePixel = 0,
-			TextColor3 = Color3.fromRGB(255, 255, 255), -- Белый текст на кнопке -- Белый текст кнопки остается
+			TextColor3 = ShopConfig.design.colors.text.button,
 			TextSize = isMobile and 12 or 13,
-			Font = Enum.Font.GothamBold,
+			Font = ShopConfig.design.colors.text.fonts.bold,
 			AutoButtonColor = false,
-			Modal = true, -- ДОБАВЛЕНО: отключаем стандартные звуки Roblox
+			Modal = true, -- Отключаем стандартные звуки Roblox
 			[Roact.Ref] = self.buttonRef,
 			
-			-- Событие покупки
+			-- Современные события кнопки
+			[Roact.Event.MouseEnter] = (not isMobile and buttonEnabled) and function()
+				self:onButtonHover(true)
+			end or nil,
+			[Roact.Event.MouseLeave] = (not isMobile and buttonEnabled) and function()
+				self:onButtonHover(false)
+			end or nil,
+			[Roact.Event.MouseButton1Down] = buttonEnabled and function()
+				self:onButtonPress()
+			end or nil,
 			[Roact.Event.Activated] = buttonEnabled and function()
 				if self.props.onPurchase then
 					self.props.onPurchase(ability)
 				end
 			end or nil,
-			
-			-- Простые hover эффекты для кнопки
-			[Roact.Event.MouseEnter] = (not isMobile and buttonEnabled) and function(button)
-				local hoverColor = Color3.fromRGB(
-					math.min(255, buttonColor.R * 255 + 20),
-					math.min(255, buttonColor.G * 255 + 20),
-					math.min(255, buttonColor.B * 255 + 20)
-				)
-				
-				local tween = TweenService:Create(button,
-					TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-					{ BackgroundColor3 = hoverColor }
-				)
-				tween:Play()
-			end or nil,
-			
-			[Roact.Event.MouseLeave] = (not isMobile and buttonEnabled) and function(button)
-				local tween = TweenService:Create(button,
-					TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-					{ BackgroundColor3 = buttonColor }
-				)
-				tween:Play()
-			end or nil,
 		}, {
-			-- Скругление кнопки
+			-- Современное скругление кнопки
 			UICorner = Roact.createElement("UICorner", {
-				CornerRadius = UDim.new(0, 6),
+				CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.button),
+			}),
+			
+			-- Светящаяся обводка кнопки
+			UIStroke = buttonEnabled and Roact.createElement("UIStroke", {
+				Color = buttonColor,
+				Thickness = ShopConfig.design.stroke.thickness,
+				Transparency = 0.6,
+			}) or nil,
+			
+			-- Современный градиент кнопки
+			UIGradient = buttonEnabled and Roact.createElement("UIGradient", {
+				Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, buttonColor),
+					ColorSequenceKeypoint.new(1, Color3.fromRGB(
+						math.max(0, buttonColor.R * 255 - 25) / 255,
+						math.max(0, buttonColor.G * 255 - 25) / 255,
+						math.max(0, buttonColor.B * 255 - 25) / 255
+					)),
+				}),
+				Rotation = 90,
+			}) or nil,
+			
+			-- Современная тень кнопки
+			ButtonShadow = Roact.createElement("Frame", {
+				Size = UDim2.new(1, ShopConfig.design.shadow.offset.x * 2, 1, ShopConfig.design.shadow.offset.y * 2),
+				Position = UDim2.new(0, ShopConfig.design.shadow.offset.x, 0, ShopConfig.design.shadow.offset.y),
+				BackgroundColor3 = buttonColor,
+				BackgroundTransparency = 0.8,
+				BorderSizePixel = 0,
+				ZIndex = -1,
+			}, {
+				UICorner = Roact.createElement("UICorner", {
+					CornerRadius = UDim.new(0, ShopConfig.design.borderRadius.button),
+				}),
 			}),
 		}),
 	})
 end
 
 return AbilityCard
+
