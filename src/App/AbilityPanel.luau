@@ -62,15 +62,22 @@ function AbilityPanel:init()
 		hoveredAbility = nil,
 	}
 	
-	-- Плавное обновление состояния через RunService.Heartbeat (более частое и плавное)
-	self.heartbeatConnection = RunService.Heartbeat:Connect(function()
-		self:smoothUpdateState()
-	end)
+	-- Оптимизированное обновление состояния (не каждый кадр!)
+	self.updateConnection = nil
+	self:startOptimizedUpdates()
 	
-	-- Загружаем способности мгновенно
+	-- Загружаем способности мгновенно и делаем первое обновление
 	spawn(function()
 		wait(0.1) -- Минимальная задержка для стабильности
 		self:loadAbilities()
+		
+		-- ВАЖНО: Инициализируем previousCooldowns правильно
+		self:initializePreviousCooldowns()
+		
+		-- ВАЖНО: Принудительно обновляем состояние в начале для корректной инициализации
+		wait(0.1) -- Дополнительная задержка для загрузки способностей
+		self:updateState()
+		print("🔄 AbilityPanel: Принудительное первое обновление состояния выполнено")
 	end)
 	
 	-- Горячие клавиши
@@ -95,6 +102,27 @@ function AbilityPanel:init()
 	end)
 end
 
+function AbilityPanel:initializePreviousCooldowns()
+	local player = Players.LocalPlayer
+	if not player then return end
+	
+	local initialCooldowns = {}
+	
+	-- Инициализируем состояния для базовых способностей
+	local baseAbilities = {"speed_boost", "shield_aura", "jump_boost"}
+	for _, abilityId in ipairs(baseAbilities) do
+		initialCooldowns[abilityId] = self.abilityService:isAbilityUnavailableForUI(player, abilityId)
+	end
+	
+	-- Инициализируем состояния для купленных способностей
+	for _, ability in ipairs(self.state.abilities) do
+		initialCooldowns[ability.id] = self.abilityService:isAbilityUnavailableForUI(player, ability.id)
+	end
+	
+	self.previousCooldowns = initialCooldowns
+	print("🔄 AbilityPanel: Инициализированы предыдущие состояния кулдаунов:", initialCooldowns)
+end
+
 function AbilityPanel:loadAbilities()
 	local player = Players.LocalPlayer
 	if not player then return end
@@ -103,47 +131,86 @@ function AbilityPanel:loadAbilities()
 	self:setState({ abilities = abilities })
 end
 
--- Плавное обновление состояния (оптимизированное)
-function AbilityPanel:smoothUpdateState()
-	local currentTime = tick()
-	
-	-- Обновляем только если прошло минимум 0.05 секунды (20 FPS для UI)
-	-- Это баланс между плавностью и производительностью
-	if currentTime - self.lastUpdateTime < 0.05 then
-		return
-	end
-	
-	local player = Players.LocalPlayer
-	if not player then return end
-	
-	-- Проверяем, есть ли активные эффекты или кулдауны
-	local activeEffects = self.abilityService:getActiveEffects(player)
-	local hasActiveState = false
-	
-	-- Быстрая проверка - есть ли что обновлять
-	for abilityId, _ in pairs(activeEffects) do
-		hasActiveState = true
-		break
-	end
-	
-	-- Проверяем кулдауны только если нет активных эффектов
-	if not hasActiveState then
-		local baseAbilities = {"speed_boost", "shield_aura", "jump_boost"}
-		for _, abilityId in ipairs(baseAbilities) do
-			if self.abilityService:isAbilityUnavailableForUI(player, abilityId) then
-				hasActiveState = true
-				break
+-- Умная система обновлений (замена Heartbeat)
+function AbilityPanel:startOptimizedUpdates()
+	-- Запускаем цикл обновлений только при необходимости
+	spawn(function()
+		local idleCounter = 0 -- Счетчик циклов без активности
+		
+		while self.updateConnection ~= false do -- Флаг для остановки
+			wait(0.1) -- Обновляем максимум 10 раз в секунду
+			
+			if self.updateConnection == false then break end
+			
+			local player = Players.LocalPlayer
+			if not player then continue end
+			
+			-- Проверяем, нужно ли обновление
+			local needsUpdate = self:checkIfUpdateNeeded(player)
+			
+			if needsUpdate then
+				self:updateState()
+				idleCounter = 0 -- Сбрасываем счетчик при активности
+			else
+				idleCounter = idleCounter + 1
+				
+				-- Увеличиваем паузу только после длительного простоя (5+ секунд)
+				if idleCounter > 50 then -- 50 * 0.1 = 5 секунд
+					wait(0.3) -- Дополнительная пауза только после долгого простоя
+				end
 			end
+		end
+	end)
+	
+	self.updateConnection = true
+end
+
+-- Проверка необходимости обновления
+function AbilityPanel:checkIfUpdateNeeded(player)
+	-- Быстрая проверка активных эффектов
+	local activeEffects = self.abilityService:getActiveEffects(player)
+	for abilityId, _ in pairs(activeEffects) do
+		return true -- Есть активные эффекты
+	end
+	
+	-- Проверка кулдаунов базовых способностей
+	local baseAbilities = {"speed_boost", "shield_aura", "jump_boost"}
+	for _, abilityId in ipairs(baseAbilities) do
+		local isOnCooldown = self.abilityService:isAbilityUnavailableForUI(player, abilityId)
+		local wasOnCooldown = self.previousCooldowns[abilityId]
+		
+		-- ВАЖНО: Первый запуск или изменение состояния
+		if wasOnCooldown == nil or wasOnCooldown ~= isOnCooldown then
+			if wasOnCooldown ~= nil then -- Не первый запуск
+				print("🔄 checkIfUpdateNeeded: Состояние", abilityId, "изменилось:", wasOnCooldown, "→", isOnCooldown)
+			end
+			return true -- Состояние кулдауна изменилось
+		end
+		
+		if isOnCooldown then
+			return true -- Есть активные кулдауны
 		end
 	end
 	
-	-- Если нет активных состояний, обновляем реже (каждые 0.2 сек)
-	if not hasActiveState and currentTime - self.lastUpdateTime < 0.2 then
-		return
+	-- Проверка купленных способностей
+	for _, ability in ipairs(self.state.abilities) do
+		local isOnCooldown = self.abilityService:isAbilityUnavailableForUI(player, ability.id)
+		local wasOnCooldown = self.previousCooldowns[ability.id]
+		
+		-- ВАЖНО: Первый запуск или изменение состояния
+		if wasOnCooldown == nil or wasOnCooldown ~= isOnCooldown then
+			if wasOnCooldown ~= nil then -- Не первый запуск
+				print("🔄 checkIfUpdateNeeded: Состояние", ability.id, "изменилось:", wasOnCooldown, "→", isOnCooldown)
+			end
+			return true -- Состояние кулдауна изменилось
+		end
+		
+		if isOnCooldown then
+			return true -- Есть активные кулдауны
+		end
 	end
 	
-	self.lastUpdateTime = currentTime
-	self:updateState()
+	return false -- Нет активности, обновления не нужны
 end
 
 function AbilityPanel:updateState()
@@ -160,7 +227,7 @@ function AbilityPanel:updateState()
 	
 	for _, abilityId in ipairs(baseAbilities) do
 		local isOnCooldown = self.abilityService:isAbilityUnavailableForUI(player, abilityId)
-		local wasOnCooldown = self.previousCooldowns[abilityId] or false
+		local wasOnCooldown = self.previousCooldowns[abilityId]
 		
 		cooldowns[abilityId] = isOnCooldown
 		
@@ -176,9 +243,10 @@ function AbilityPanel:updateState()
 		end
 		
 		-- Проверяем, закончился ли кулдаун (был на кулдауне, теперь нет)
-		if wasOnCooldown and not isOnCooldown then
+		if wasOnCooldown == true and isOnCooldown == false then
 			-- Кулдаун закончился
-			print("AbilityPanel: Кулдаун способности", abilityId, "закончился!")
+			print("✅ AbilityPanel: Кулдаун способности", abilityId, "закончился! Обновляем UI")
+			print("📊 AbilityPanel: Детали -", abilityId, "wasOnCooldown:", wasOnCooldown, "isOnCooldown:", isOnCooldown)
 		end
 		
 		if isOnCooldown then
@@ -189,7 +257,7 @@ function AbilityPanel:updateState()
 	-- Также проверяем купленные способности (для особых способностей в будущем)
 	for _, ability in ipairs(self.state.abilities) do
 		local isOnCooldown = self.abilityService:isAbilityUnavailableForUI(player, ability.id)
-		local wasOnCooldown = self.previousCooldowns[ability.id] or false
+		local wasOnCooldown = self.previousCooldowns[ability.id]
 		
 		cooldowns[ability.id] = isOnCooldown
 		
@@ -205,8 +273,9 @@ function AbilityPanel:updateState()
 		end
 		
 		-- Проверяем окончание кулдауна
-		if wasOnCooldown and not isOnCooldown then
-			print("AbilityPanel: Кулдаун способности", ability.id, "закончился!")
+		if wasOnCooldown == true and isOnCooldown == false then
+			print("✅ AbilityPanel: Кулдаун способности", ability.id, "закончился! Обновляем UI")
+			print("📊 AbilityPanel: Детали -", ability.id, "wasOnCooldown:", wasOnCooldown, "isOnCooldown:", isOnCooldown)
 		end
 		
 		if isOnCooldown then
@@ -216,6 +285,19 @@ function AbilityPanel:updateState()
 	
 	-- Сохраняем текущие состояния для следующего обновления
 	self.previousCooldowns = cooldowns
+	
+	-- ОТЛАДКА: Логируем изменения состояния
+	local changedAbilities = {}
+	for abilityId, newState in pairs(cooldowns) do
+		local oldState = self.state.cooldowns[abilityId]
+		if oldState ~= newState then
+			table.insert(changedAbilities, string.format("%s: %s→%s", abilityId, tostring(oldState), tostring(newState)))
+		end
+	end
+	
+	if #changedAbilities > 0 then
+		print("🔄 AbilityPanel updateState: Изменения состояний:", table.concat(changedAbilities, ", "))
+	end
 	
 	self:setState({
 		cooldowns = cooldowns,
@@ -805,7 +887,10 @@ function AbilityPanel:getAbilityConfig(abilityId: string)
 end
 
 function AbilityPanel:willUnmount()
-	-- Отключаем соединение Heartbeat при размонтировании
+	-- Останавливаем оптимизированные обновления
+	self.updateConnection = false
+	
+	-- Отключаем старое соединение Heartbeat (если оно есть)
 	if self.heartbeatConnection then
 		self.heartbeatConnection:Disconnect()
 		self.heartbeatConnection = nil

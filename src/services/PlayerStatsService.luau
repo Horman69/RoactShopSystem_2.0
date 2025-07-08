@@ -14,6 +14,9 @@ type ActiveEffect = Types.ActiveEffect
 type EffectType = Types.EffectType
 type EffectTarget = Types.EffectTarget
 
+-- Импортируем новый сервис ауры щита
+local ShieldAuraService
+
 -- Интерфейс сервиса
 type PlayerStatsServiceInterface = {
 	-- Основные методы
@@ -62,12 +65,27 @@ local CONFIG = {
 	MAX_WALK_SPEED = 100, -- Лимит скорости
 	MAX_JUMP_HEIGHT = 50, -- Лимит высоты прыжка
 	SHIELD_TRANSPARENCY = 0.7,
-	SHIELD_COLOR = Color3.fromRGB(0, 170, 255),
+	SHIELD_COLOR = Color3.fromRGB(0, 255, 100), -- Зеленый цвет щита
 }
 
 -- Инициализация сервиса
 function PlayerStatsService.new(): PlayerStatsServiceInterface
 	local self = setmetatable({}, PlayerStatsService)
+	
+	-- Инициализируем новый сервис ауры щита
+	local success, result = pcall(function()
+		local ModuleLoader = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ModuleLoader"))
+		return ModuleLoader.require("services/ShieldAuraService").new()
+	end)
+	
+	if success then
+		ShieldAuraService = result
+		print("PlayerStatsService: ShieldAuraService успешно инициализирован")
+	else
+		warn("PlayerStatsService: Ошибка загрузки ShieldAuraService:", result)
+		warn("PlayerStatsService: Будет использоваться старая система щитов")
+		ShieldAuraService = nil
+	end
 	
 	-- Подписываемся на события игроков
 	Players.PlayerAdded:Connect(function(player)
@@ -128,7 +146,25 @@ function PlayerStatsService:applyEffect(player: Player, effect: AbilityEffect, a
 			print("PlayerStatsService: Новая скорость игрока", player.Name, ":", player.Character.Humanoid.WalkSpeed)
 		end
 	elseif effect.target == "Shield" then
-		self:_createShieldEffect(player, effect.value, abilityId)
+		-- Используем новый улучшенный сервис ауры щита
+		if ShieldAuraService then
+			-- Получаем длительность эффекта из AbilityConfig
+			local ModuleLoader = require(ReplicatedStorage:WaitForChild("shared"):WaitForChild("ModuleLoader"))
+			local AbilityConfig = ModuleLoader.require("shared/AbilityConfig")
+			
+			-- Находим конфигурацию способности для получения длительности
+			local duration = 15 -- Дефолтная длительность
+			local ability = AbilityConfig.getAbilityById(abilityId)
+			if ability then
+				duration = ability.baseDuration
+			end
+			
+			ShieldAuraService:createShieldAura(player, abilityId, duration)
+			print("PlayerStatsService: Создана улучшенная аура щита для", player.Name, "на", duration, "сек")
+		else
+			-- Fallback на старый метод если новый сервис недоступен
+			self:_createShieldEffect(player, effect.value, abilityId)
+		end
 	elseif effect.target == "Health" then
 		self:_applyHealthEffect(player, effect)
 	end
@@ -150,7 +186,14 @@ function PlayerStatsService:removeEffect(player: Player, abilityId: string): ()
 			
 			-- Удаляем визуальные эффекты щита
 			if appliedEffect.effect.target == "Shield" then
-				self:_removeShieldEffect(player, abilityId)
+				-- Используем новый сервис для удаления ауры щита
+				if ShieldAuraService then
+					ShieldAuraService:removeShieldAura(player, abilityId)
+					print("PlayerStatsService: Удалена улучшенная аура щита для", player.Name)
+				else
+					-- Fallback на старый метод
+					self:_removeShieldEffect(player, abilityId)
+				end
 			end
 		end
 	end
@@ -180,7 +223,12 @@ function PlayerStatsService:removeAllEffects(player: Player): ()
 	end
 	
 	-- Удаляем все визуальные эффекты щитов
-	self:_removeAllShieldEffects(player)
+	-- Удаляем все визуальные эффекты щитов
+	if ShieldAuraService then
+		ShieldAuraService:removeAllShieldAuras(player)
+	else
+		self:_removeAllShieldEffects(player)
+	end
 	
 	-- Очищаем список эффектов
 	playerAppliedEffects[player] = {}
@@ -367,11 +415,20 @@ function PlayerStatsService:_createShieldEffect(player: Player, shieldValue: num
 	pointLight.Range = 10
 	pointLight.Parent = shield
 	
-	-- Анимация пульсации
+	-- Оптимизированная анимация пульсации (10 FPS вместо 60+)
 	local connection
+	local lastUpdate = 0
 	connection = RunService.Heartbeat:Connect(function()
+		local currentTime = tick()
+		
+		-- Ограничиваем частоту обновления до 10 FPS для экономии ресурсов
+		if currentTime - lastUpdate < 0.1 then
+			return
+		end
+		lastUpdate = currentTime
+		
 		if shield.Parent then
-			shield.Transparency = CONFIG.SHIELD_TRANSPARENCY + math.sin(tick() * 3) * 0.2
+			shield.Transparency = CONFIG.SHIELD_TRANSPARENCY + math.sin(currentTime * 3) * 0.2
 			if humanoidRootPart.Parent then
 				shield.CFrame = humanoidRootPart.CFrame
 			else

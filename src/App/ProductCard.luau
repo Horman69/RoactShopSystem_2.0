@@ -24,8 +24,8 @@ export type ProductCardProps = {
 	onPurchase: (product: Product) -> (),
 }
 
--- Компонент карточки товара
-local ProductCard = Roact.Component:extend("ProductCard")
+-- Компонент карточки товара (ОПТИМИЗИРОВАН как PureComponent)
+local ProductCard = Roact.PureComponent:extend("ProductCard")
 
 function ProductCard:init()
 	self.platformService = PlatformService.new()

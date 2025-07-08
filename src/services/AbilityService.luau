@@ -475,14 +475,22 @@ function AbilityService:_startEffectUpdateLoop()
 	RunService.Heartbeat:Connect(function()
 		local currentTime = tick()
 		
-		-- Обновляем эффекты каждые 0.1 секунды
+		-- Обновляем эффекты каждые 0.1 секунды (оптимизировано)
 		if currentTime - lastUpdate >= CONFIG.EFFECT_UPDATE_INTERVAL then
 			lastUpdate = currentTime
 			
+			-- Проверяем, есть ли активные игроки (оптимизация)
+			local activePlayersCount = 0
 			for player, _ in pairs(playerStates) do
 				if player.Parent then -- Игрок все еще в игре
+					activePlayersCount = activePlayersCount + 1
 					self:clearExpiredEffects(player)
 				end
+			end
+			
+			-- Если нет активных игроков, пропускаем обновления чаще
+			if activePlayersCount == 0 then
+				lastUpdate = currentTime + 0.5 -- Дополнительная пауза при отсутствии игроков
 			end
 		end
 	end)

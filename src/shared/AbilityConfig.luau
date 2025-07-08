@@ -55,7 +55,7 @@ local ABILITY_CONFIG: AbilityList = {
 		-- Дополнительные настройки
 		hotkey = "E",
 		visualEffect = "shield_glow",
-		shieldColor = Color3.fromRGB(0, 170, 255), -- цвет щита
+		shieldColor = Color3.fromRGB(0, 255, 100), -- зеленый цвет щита
 		shieldTransparency = 0.7,
 	},
 	

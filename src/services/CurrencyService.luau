@@ -172,6 +172,18 @@ function CurrencyService:_startAutoSave()
 		while true do
 			wait(CONFIG.AUTO_SAVE_INTERVAL)
 			
+			-- Проверяем, есть ли игроки для сохранения (оптимизация)
+			local playersCount = 0
+			for _, _ in pairs(playerCurrencyCache) do
+				playersCount = playersCount + 1
+			end
+			
+			-- Если нет игроков, ждём дольше для экономии ресурсов
+			if playersCount == 0 then
+				wait(30) -- Дополнительная пауза при отсутствии игроков
+				continue
+			end
+			
 			-- Сохраняем данные всех игроков
 			for player, _ in pairs(playerCurrencyCache) do
 				if player.Parent then -- Игрок всё ещё в игре
